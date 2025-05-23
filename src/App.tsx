@@ -1,9 +1,13 @@
+import React from 'react';
 import { ConfigProvider, theme } from 'antd';
 import { MainLayout } from './components/layout';
 import { Dashboard } from './components/dashboard';
-import { ReplacementEditor } from './components/replacements';
+import { ReplacementEditor, CategoryReplacements } from './components/replacements';
 import { GeneralSettings } from './components/settings';
+import { Projects } from './components/projects';
+import { CategorySettings } from './components/categories';
 import { ReplacementProvider, useReplacements } from './contexts/ReplacementContext';
+import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
 function AppContent() {
@@ -18,6 +22,32 @@ function AppContent() {
     );
   }
   
+  if (selectedMenuItem === 'category-settings') {
+    return (
+      <MainLayout>
+        <CategorySettings />
+      </MainLayout>
+    );
+  }
+  
+  if (selectedMenuItem === 'projects') {
+    return (
+      <MainLayout>
+        <Projects />
+      </MainLayout>
+    );
+  }
+  
+  // Handle category selection
+  if (selectedMenuItem.startsWith('category-')) {
+    const categoryId = selectedMenuItem.replace('category-', '');
+    return (
+      <MainLayout>
+        <CategoryReplacements categoryId={categoryId} />
+      </MainLayout>
+    );
+  }
+  
   return (
     <MainLayout>
       {selectedReplacement ? <ReplacementEditor /> : <Dashboard />}
@@ -27,6 +57,17 @@ function AppContent() {
 
 function ThemedApp() {
   const { actualTheme } = useTheme();
+  
+  // Add theme class to body for CSS styling
+  React.useEffect(() => {
+    if (actualTheme === 'dark') {
+      document.body.classList.add('dark');
+      document.documentElement.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+      document.documentElement.classList.remove('dark');
+    }
+  }, [actualTheme]);
   
   return (
     <ConfigProvider
@@ -62,7 +103,9 @@ function ThemedApp() {
       }}
     >
       <ReplacementProvider>
-        <AppContent />
+        <ProjectProvider>
+          <AppContent />
+        </ProjectProvider>
       </ReplacementProvider>
     </ConfigProvider>
   );

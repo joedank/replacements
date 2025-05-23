@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Typography, theme } from 'antd';
+import { Layout, Menu, Button, Typography, theme, Select, Space } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -9,11 +9,14 @@ import {
   FileOutlined,
   SettingOutlined,
   SearchOutlined,
-  CodeOutlined,
-  RobotOutlined,
+  FolderOpenOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
+import * as Icons from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useReplacements } from '../../contexts/ReplacementContext';
+import { useProjects } from '../../contexts/ProjectContext';
+import { invoke } from '@tauri-apps/api/core';
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Title } = Typography;
@@ -22,48 +25,73 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  fileName: string;
+  description?: string;
+  icon: string;
+  color?: string;
+  isDefault?: boolean;
+}
+
 type MenuItem = Required<MenuProps>['items'][number];
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>(['dashboard']);
+  const [categories, setCategories] = useState<Category[]>([]);
+  
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
   
   const { 
-    globalReplacements, 
-    baseReplacements, 
-    aiReplacements,
-    loading,
     loadReplacements,
-    selectReplacement,
     selectMenuItem 
   } = useReplacements();
+  
+  const {
+    projects,
+    activeProject,
+    loadProjects,
+    setActiveProject
+  } = useProjects();
 
-  // Load replacements on component mount
+  // Load categories
+  const loadCategories = async () => {
+    try {
+      const data = await invoke<Category[]>('get_categories');
+      setCategories(data);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
+
+  // Load replacements, projects, and categories on component mount
   useEffect(() => {
     loadReplacements();
-  }, [loadReplacements]);
+    loadProjects();
+    loadCategories();
+  }, [loadReplacements, loadProjects]);
 
   const handleMenuClick: MenuProps['onClick'] = (e) => {
     const key = e.key;
     setSelectedKeys([key]);
 
-    // Handle trigger selection
-    if (key.startsWith('global-')) {
-      const index = parseInt(key.replace('global-', ''));
-      selectReplacement('global', index);
-    } else if (key.startsWith('base-')) {
-      const index = parseInt(key.replace('base-', ''));
-      selectReplacement('base', index);
-    } else if (key.startsWith('ai-')) {
-      const index = parseInt(key.replace('ai-', ''));
-      selectReplacement('ai', index);
+    // Handle category selection
+    if (key.startsWith('category-')) {
+      selectMenuItem(key);
     } else {
       // Handle other menu items
       selectMenuItem(key);
     }
+  };
+
+  // Get icon component from icon name
+  const getIconComponent = (iconName: string) => {
+    const IconComponent = (Icons as any)[iconName];
+    return IconComponent ? <IconComponent /> : <FileTextOutlined />;
   };
 
   const menuItems: MenuItem[] = [
@@ -73,73 +101,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       label: 'Dashboard',
     },
     {
-      key: 'global',
-      icon: <FileTextOutlined />,
-      label: loading ? 'Global (loading...)' : `Global (${globalReplacements.length})`,
-      children: globalReplacements.map((replacement, index) => ({
-        key: `global-${index}`,
-        label: (
-          <span style={{ 
-            fontFamily: 'monospace', 
-            fontSize: '12px',
-            color: '#595959',
-            paddingLeft: '8px'
-          }}>
-            {replacement.trigger}
-          </span>
-        ),
-      })),
-    },
-    {
-      key: 'base',
-      icon: <CodeOutlined />,
-      label: loading ? 'Base (loading...)' : `Base (${baseReplacements.length})`,
-      children: baseReplacements.map((replacement, index) => ({
-        key: `base-${index}`,
-        label: (
-          <span style={{ 
-            fontFamily: 'monospace', 
-            fontSize: '12px',
-            color: '#595959',
-            paddingLeft: '8px'
-          }}>
-            {replacement.trigger}
-          </span>
-        ),
-      })),
-    },
-    {
-      key: 'ai-prompts',
-      icon: <RobotOutlined />,
-      label: loading ? 'AI Prompts (loading...)' : `AI Prompts (${aiReplacements.length})`,
-      children: aiReplacements.map((replacement, index) => ({
-        key: `ai-${index}`,
-        label: (
-          <span style={{ 
-            fontFamily: 'monospace', 
-            fontSize: '12px',
-            color: '#595959',
-            paddingLeft: '8px'
-          }}>
-            {replacement.trigger}
-          </span>
-        ),
+      key: 'replacements',
+      icon: <EditOutlined />,
+      label: 'Replacements',
+      children: categories.map((category) => ({
+        key: `category-${category.id}`,
+        icon: getIconComponent(category.icon),
+        label: category.name,
       })),
     },
     {
       key: 'projects',
       icon: <ProjectOutlined />,
       label: 'Projects',
-      children: [
-        {
-          key: 'project-list',
-          label: 'All Projects',
-        },
-        {
-          key: 'project-create',
-          label: 'Create Project',
-        },
-      ],
     },
     {
       key: 'templates',
@@ -169,6 +143,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         {
           key: 'general-settings',
           label: 'General',
+        },
+        {
+          key: 'category-settings',
+          label: 'Categories',
         },
         {
           key: 'espanso-config',
@@ -203,7 +181,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           msOverflowStyle: 'none', // IE and Edge
         }}
         width={240}
-        className="custom-sidebar"
       >
         <div style={{
           height: '64px',
@@ -241,36 +218,68 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             background: colorBgContainer,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             borderBottom: '1px solid #f0f0f0',
             position: 'sticky',
             top: 0,
             zIndex: 1,
           }}
         >
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
-              fontSize: '16px',
-              width: 64,
-              height: 64,
-            }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{
+                fontSize: '16px',
+                width: 64,
+                height: 64,
+              }}
+            />
+            
+            <Title level={3} style={{ margin: 0, marginLeft: '16px' }}>
+              BetterReplacementsManager
+            </Title>
+          </div>
           
-          <Title level={3} style={{ margin: 0, marginLeft: '16px' }}>
-            BetterReplacementsManager
-          </Title>
+          <Space>
+            <Select
+              style={{ width: 250 }}
+              placeholder="Select active project"
+              value={activeProject?.id || undefined}
+              onChange={(value) => setActiveProject(value || null)}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={[
+                {
+                  label: 'No active project',
+                  value: '',
+                },
+                ...projects.map(project => ({
+                  label: project.name,
+                  value: project.id,
+                  title: project.description,
+                }))
+              ]}
+              suffixIcon={<FolderOpenOutlined />}
+            />
+          </Space>
         </Header>
         
         <Content
           style={{
             margin: '16px',
-            padding: '24px',
-            minHeight: 'calc(100vh - 64px - 70px - 32px)', // Header + Footer + margins
+            padding: 0,
+            height: 'calc(100vh - 64px - 70px - 32px)', // Header + Footer + margins
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
-            overflow: 'auto',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {children}

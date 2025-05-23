@@ -1,0 +1,119 @@
+/* Custom scrollbar styles that match Ant Design theme */
+/* Force custom scrollbars on all platforms including macOS */
+
+/* Force scrollbars to always be visible */
+.custom-scrollbar::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+}
+
+/* LIGHT ─────────────────────────────────────────────────────────────── */
+html,
+body {
+  color-scheme: light;  /* explicit light mode for WebKit */
+}
+
+.custom-scrollbar {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+  /* Force overflow scrollbars to always show */
+  overflow-y: scroll !important;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) - Light theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background-color: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* DARK ─────────────────────────────────────────────────────────────── */
+html.dark,
+body.dark {
+  color-scheme: dark;  /* lets WebKit/Safari choose dark UI defaults */
+}
+
+body.dark .custom-scrollbar {
+  /* Firefox */
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+body.dark .custom-scrollbar::-webkit-scrollbar {
+  -webkit-appearance: none !important;  /* critical on macOS */
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+body.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+body.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  border: 2px solid transparent;  /* keeps a gap */
+  background-clip: content-box;
+}
+
+body.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+body.dark .custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Minimal scrollbar for sidebar */
+.minimal-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.minimal-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.minimal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.minimal-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.minimal-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark theme minimal scrollbar */
+.dark .minimal-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .minimal-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
