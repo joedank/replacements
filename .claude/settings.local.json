@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Ant_Design_Components__get-component-docs",
+      "mcp__Ant_Design_Components__get-component-props",
+      "Bash(npm run typecheck:*)",
+      "Bash(./universal_build.sh:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}

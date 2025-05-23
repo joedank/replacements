@@ -1,0 +1,45 @@
+/* Dark mode styles */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ensure smooth transitions for theme changes */
+.ant-layout,
+.ant-layout-header,
+.ant-layout-sider,
+.ant-layout-content,
+.ant-layout-footer,
+.ant-menu,
+.ant-card {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Hide scrollbar for sidebar while maintaining scroll functionality */
+.custom-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-sidebar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Also apply to the inner menu container */
+.custom-sidebar .ant-menu {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.custom-sidebar .ant-menu::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom dark mode overrides if needed */
+.dark-mode {
+  /* Additional dark mode styles can go here */
+}
+
+/* System theme detection media query - for future reference */
+@media (prefers-color-scheme: dark) {
+  /* Styles for when system is in dark mode and theme is set to auto */
+}
