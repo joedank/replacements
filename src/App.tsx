@@ -1,14 +1,24 @@
-import React from 'react';
-import { ConfigProvider, theme } from 'antd';
+import React, { lazy, Suspense } from 'react';
+import { ConfigProvider, theme, message, Modal, Spin } from 'antd';
 import { MainLayout } from './components/layout';
-import { Dashboard } from './components/dashboard';
-import { ReplacementEditor, CategoryReplacements } from './components/replacements';
-import { GeneralSettings } from './components/settings';
-import { Projects } from './components/projects';
-import { CategorySettings } from './components/categories';
 import { ReplacementProvider, useReplacements } from './contexts/ReplacementContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+
+// Lazy load components to split them into separate chunks
+const Dashboard = lazy(() => import('./components/dashboard').then(m => ({ default: m.Dashboard })));
+const ReplacementEditor = lazy(() => import('./components/replacements').then(m => ({ default: m.ReplacementEditor })));
+const CategoryReplacements = lazy(() => import('./components/replacements').then(m => ({ default: m.CategoryReplacements })));
+const GeneralSettings = lazy(() => import('./components/settings').then(m => ({ default: m.GeneralSettings })));
+const Projects = lazy(() => import('./components/projects').then(m => ({ default: m.Projects })));
+const CategorySettings = lazy(() => import('./components/categories').then(m => ({ default: m.CategorySettings })));
+
+// Loading component for lazy-loaded components
+const LoadingFallback = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+    <Spin size="large" />
+  </div>
+);
 
 function AppContent() {
   const { selectedReplacement, selectedMenuItem } = useReplacements();
@@ -17,7 +27,9 @@ function AppContent() {
   if (selectedMenuItem === 'general-settings') {
     return (
       <MainLayout>
-        <GeneralSettings />
+        <Suspense fallback={<LoadingFallback />}>
+          <GeneralSettings />
+        </Suspense>
       </MainLayout>
     );
   }
@@ -25,7 +37,9 @@ function AppContent() {
   if (selectedMenuItem === 'category-settings') {
     return (
       <MainLayout>
-        <CategorySettings />
+        <Suspense fallback={<LoadingFallback />}>
+          <CategorySettings />
+        </Suspense>
       </MainLayout>
     );
   }
@@ -33,7 +47,9 @@ function AppContent() {
   if (selectedMenuItem === 'projects') {
     return (
       <MainLayout>
-        <Projects />
+        <Suspense fallback={<LoadingFallback />}>
+          <Projects />
+        </Suspense>
       </MainLayout>
     );
   }
@@ -43,14 +59,18 @@ function AppContent() {
     const categoryId = selectedMenuItem.replace('category-', '');
     return (
       <MainLayout>
-        <CategoryReplacements categoryId={categoryId} />
+        <Suspense fallback={<LoadingFallback />}>
+          <CategoryReplacements categoryId={categoryId} />
+        </Suspense>
       </MainLayout>
     );
   }
   
   return (
     <MainLayout>
-      {selectedReplacement ? <ReplacementEditor /> : <Dashboard />}
+      <Suspense fallback={<LoadingFallback />}>
+        {selectedReplacement ? <ReplacementEditor /> : <Dashboard />}
+      </Suspense>
     </MainLayout>
   );
 }
@@ -68,6 +88,10 @@ function ThemedApp() {
       document.documentElement.classList.remove('dark');
     }
   }, [actualTheme]);
+
+  // Configure static methods to use the current theme
+  const [, messageContextHolder] = message.useMessage();
+  const [, modalContextHolder] = Modal.useModal();
   
   return (
     <ConfigProvider
@@ -99,9 +123,20 @@ function ThemedApp() {
             itemSelectedBg: actualTheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#f0f5ff',
             itemHoverBg: actualTheme === 'dark' ? 'rgba(255, 255, 255, 0.04)' : '#f5f5f5',
           },
+          Message: {
+            contentBg: actualTheme === 'dark' ? '#1f1f1f' : '#ffffff',
+            colorText: actualTheme === 'dark' ? '#ffffff' : '#000000',
+          },
+          Modal: {
+            contentBg: actualTheme === 'dark' ? '#1f1f1f' : '#ffffff',
+            headerBg: actualTheme === 'dark' ? '#1f1f1f' : '#ffffff',
+            colorText: actualTheme === 'dark' ? '#ffffff' : '#000000',
+          },
         },
       }}
     >
+      {messageContextHolder}
+      {modalContextHolder}
       <ReplacementProvider>
         <ProjectProvider>
           <AppContent />

@@ -18,4 +18,25 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  
+  build: {
+    // Increase the chunk size warning limit if needed
+    chunkSizeWarningLimit: 600,
+    
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor libraries into separate chunks
+          'react-vendor': ['react', 'react-dom'],
+          'antd-vendor': ['antd', '@ant-design/icons'],
+          'tauri-vendor': ['@tauri-apps/api'],
+          'utils': ['textarea-caret-position'],
+        },
+        // Use a consistent naming pattern for chunks
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+      },
+    },
+  },
 }));
