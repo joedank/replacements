@@ -1,31 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card,
-  List,
   Button,
   Input,
   Space,
   Typography,
   Empty,
   Modal,
-  Form,
   message,
-  Tooltip,
   Badge,
   Dropdown,
+  Tag,
+  Flex,
 } from 'antd';
 import {
   PlusOutlined,
-  EditOutlined,
   DeleteOutlined,
   CopyOutlined,
-  CodeOutlined,
+  SaveOutlined,
   MoreOutlined,
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
 import type { MenuProps } from 'antd';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Search } = Input;
 
@@ -53,12 +51,11 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const [category, setCategory] = useState<Category | null>(null);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [filteredReplacements, setFilteredReplacements] = useState<Replacement[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingReplacement, setEditingReplacement] = useState<Replacement | null>(null);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [form] = Form.useForm();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [editingTrigger, setEditingTrigger] = useState('');
+  const [editingReplace, setEditingReplace] = useState('');
+  const [isNewReplacement, setIsNewReplacement] = useState(false);
 
   useEffect(() => {
     loadCategoryAndReplacements();
@@ -78,7 +75,6 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   }, [searchText, replacements]);
 
   const loadCategoryAndReplacements = async () => {
-    setLoading(true);
     try {
       // Load category info
       const categories = await invoke<Category[]>('get_categories');
@@ -94,26 +90,22 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     } catch (error) {
       console.error('Failed to load category replacements:', error);
       message.error('Failed to load replacements');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleCreate = () => {
-    setEditingReplacement(null);
-    setEditingIndex(null);
-    form.resetFields();
-    setIsModalOpen(true);
+  const handleSelectReplacement = (index: number) => {
+    const replacement = filteredReplacements[index];
+    setSelectedIndex(index);
+    setEditingTrigger(replacement.trigger);
+    setEditingReplace(replacement.replace);
+    setIsNewReplacement(false);
   };
 
-  const handleEdit = (replacement: Replacement, index: number) => {
-    setEditingReplacement(replacement);
-    setEditingIndex(index);
-    form.setFieldsValue({
-      trigger: replacement.trigger,
-      replace: replacement.replace,
-    });
-    setIsModalOpen(true);
+  const handleCreateNew = () => {
+    setSelectedIndex(null);
+    setEditingTrigger('');
+    setEditingReplace('');
+    setIsNewReplacement(true);
   };
 
   const handleDelete = async (index: number) => {
@@ -139,25 +131,33 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     });
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSave = async () => {
+    if (!editingTrigger.trim() || !editingReplace.trim()) {
+      message.error('Please fill in both trigger and replacement text');
+      return;
+    }
+
     try {
       const newReplacements = [...replacements];
       
-      if (editingIndex !== null) {
-        // Update existing
-        newReplacements[editingIndex] = {
-          ...newReplacements[editingIndex],
-          trigger: values.trigger,
-          replace: values.replace,
-        };
-      } else {
+      if (isNewReplacement) {
         // Create new
         const filePath = `/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/${category?.fileName}`;
         newReplacements.push({
-          trigger: values.trigger,
-          replace: values.replace,
+          trigger: editingTrigger,
+          replace: editingReplace,
           source: filePath,
         });
+      } else if (selectedIndex !== null) {
+        // Update existing - find original index in full replacements array
+        const originalIndex = replacements.findIndex(r => r.trigger === filteredReplacements[selectedIndex].trigger);
+        if (originalIndex !== -1) {
+          newReplacements[originalIndex] = {
+            ...newReplacements[originalIndex],
+            trigger: editingTrigger,
+            replace: editingReplace,
+          };
+        }
       }
       
       await invoke('write_espanso_file', {
@@ -166,8 +166,13 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       });
       
       setReplacements(newReplacements);
-      setIsModalOpen(false);
-      message.success(editingIndex !== null ? 'Replacement updated' : 'Replacement created');
+      message.success(isNewReplacement ? 'Replacement created' : 'Replacement updated');
+      
+      // Reset form
+      setSelectedIndex(null);
+      setEditingTrigger('');
+      setEditingReplace('');
+      setIsNewReplacement(false);
     } catch (error) {
       message.error('Failed to save replacement');
     }
@@ -178,13 +183,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     message.success('Trigger copied to clipboard');
   };
 
-  const getDropdownItems = (replacement: Replacement, index: number): MenuProps['items'] => [
-    {
-      key: 'edit',
-      label: 'Edit',
-      icon: <EditOutlined />,
-      onClick: () => handleEdit(replacement, index),
-    },
+  const getDropdownItems = (replacement: Replacement): MenuProps['items'] => [
     {
       key: 'copy',
       label: 'Copy Trigger',
@@ -199,7 +198,13 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       label: 'Delete',
       icon: <DeleteOutlined />,
       danger: true,
-      onClick: () => handleDelete(index),
+      onClick: () => {
+        // Find original index in full replacements array
+        const originalIndex = replacements.findIndex(r => r.trigger === replacement.trigger);
+        if (originalIndex !== -1) {
+          handleDelete(originalIndex);
+        }
+      },
     },
   ];
 
@@ -249,7 +254,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                   style={{ width: 300 }}
                   allowClear
                 />
-                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateNew}>
                   New Replacement
                 </Button>
               </Space>
@@ -271,123 +276,112 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
             }
           >
             {!searchText && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateNew}>
                 Create First Replacement
               </Button>
             )}
           </Empty>
         ) : (
-          <div 
-            className="custom-scrollbar"
-            style={{ 
-              flex: 1, 
-              overflow: 'auto',
-              marginTop: '16px',
-              paddingRight: '4px',
+          <>
+            <div style={{ 
+              overflowX: 'auto', 
+              overflowY: 'hidden',
+              padding: '8px 0',
+              marginBottom: '24px',
+              borderBottom: '1px solid #f0f0f0'
             }}>
-            <List
-              loading={loading}
-              itemLayout="horizontal"
-              dataSource={filteredReplacements}
-              pagination={{
-                pageSize: 20,
-                showSizeChanger: true,
-                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} replacements`,
-                pageSizeOptions: ['10', '20', '50', '100']
-              }}
-              renderItem={(replacement, index) => (
-              <List.Item
-                actions={[
-                  <Dropdown
-                    menu={{ items: getDropdownItems(replacement, index) }}
-                    trigger={['click']}
+              <Flex gap={8} style={{ minWidth: 'max-content' }}>
+                {filteredReplacements.map((replacement, index) => (
+                  <Tag.CheckableTag
+                    key={`${replacement.trigger}-${index}`}
+                    checked={selectedIndex === index}
+                    onChange={() => handleSelectReplacement(index)}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '14px',
+                      fontFamily: 'monospace',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      borderRadius: '6px',
+                    }}
                   >
-                    <Button type="text" icon={<MoreOutlined />} />
-                  </Dropdown>
-                ]}
-              >
-                <List.Item.Meta
-                  avatar={<CodeOutlined style={{ fontSize: '24px', color: '#1890ff' }} />}
-                  title={
-                    <Space>
-                      <Text code strong style={{ fontSize: '16px' }}>
-                        {replacement.trigger}
-                      </Text>
-                      <Tooltip title="Copy trigger">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<CopyOutlined />}
-                          onClick={() => handleCopy(replacement)}
+                    <Space size={4}>
+                      <span>{replacement.trigger}</span>
+                      <Dropdown
+                        menu={{ items: getDropdownItems(replacement) }}
+                        trigger={['click']}
+                      >
+                        <Button 
+                          type="text" 
+                          size="small" 
+                          icon={<MoreOutlined />}
+                          style={{ 
+                            padding: 0, 
+                            width: '16px', 
+                            height: '16px',
+                            minWidth: 'unset'
+                          }}
+                          onClick={(e) => e.stopPropagation()}
                         />
-                      </Tooltip>
+                      </Dropdown>
                     </Space>
-                  }
-                  description={
-                    <Paragraph
-                      ellipsis={{ rows: 2, expandable: true }}
-                      style={{ margin: 0, whiteSpace: 'pre-wrap' }}
-                    >
-                      {replacement.replace}
-                    </Paragraph>
-                  }
+                  </Tag.CheckableTag>
+                ))}
+              </Flex>
+            </div>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <Text strong>Trigger:</Text>
+                <Input
+                  value={editingTrigger}
+                  onChange={(e) => setEditingTrigger(e.target.value)}
+                  placeholder="Enter trigger (e.g., :example)"
+                  style={{ marginTop: '8px' }}
+                  prefix=":"
                 />
-              </List.Item>
-            )}
-            />
-          </div>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <Text strong>Replacement Text:</Text>
+                <TextArea
+                  value={editingReplace}
+                  onChange={(e) => setEditingReplace(e.target.value)}
+                  placeholder="Enter replacement text"
+                  style={{ marginTop: '8px', minHeight: '120px' }}
+                  autoSize={{ minRows: 4, maxRows: 10 }}
+                />
+              </div>
+
+              <div>
+                <Space>
+                  <Button 
+                    type="primary" 
+                    icon={<SaveOutlined />}
+                    onClick={handleSave}
+                    disabled={!editingTrigger.trim() || !editingReplace.trim()}
+                  >
+                    {isNewReplacement ? 'Create' : 'Update'}
+                  </Button>
+                  {(selectedIndex !== null || isNewReplacement) && (
+                    <Button 
+                      onClick={() => {
+                        setSelectedIndex(null);
+                        setEditingTrigger('');
+                        setEditingReplace('');
+                        setIsNewReplacement(false);
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </Space>
+              </div>
+            </div>
+          </>
         )}
       </Card>
 
-      <Modal
-        title={editingReplacement ? 'Edit Replacement' : 'Create Replacement'}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-        >
-          <Form.Item
-            name="trigger"
-            label="Trigger"
-            rules={[
-              { required: true, message: 'Please enter trigger' },
-              { pattern: /^[^\s]+$/, message: 'Trigger cannot contain spaces' }
-            ]}
-            extra="The text that will trigger the replacement (no spaces allowed)"
-          >
-            <Input placeholder=":example" prefix=":" />
-          </Form.Item>
-
-          <Form.Item
-            name="replace"
-            label="Replacement Text"
-            rules={[{ required: true, message: 'Please enter replacement text' }]}
-            extra="The text that will replace the trigger"
-          >
-            <TextArea
-              rows={6}
-              placeholder="This is the replacement text"
-              showCount
-            />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                {editingReplacement ? 'Update' : 'Create'}
-              </Button>
-              <Button onClick={() => setIsModalOpen(false)}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 };
