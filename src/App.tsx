@@ -4,6 +4,8 @@ import { MainLayout } from './components/layout';
 import { ReplacementProvider, useReplacements } from './contexts/ReplacementContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { VariablesProvider } from './contexts/VariablesContext';
+import { DebugPanel } from './components/debug';
 
 // Lazy load components to split them into separate chunks
 const Dashboard = lazy(() => import('./components/dashboard').then(m => ({ default: m.Dashboard })));
@@ -139,7 +141,10 @@ function ThemedApp() {
       {modalContextHolder}
       <ReplacementProvider>
         <ProjectProvider>
-          <AppContent />
+          <VariablesProvider>
+            <AppContent />
+            <DebugPanel />
+          </VariablesProvider>
         </ProjectProvider>
       </ReplacementProvider>
     </ConfigProvider>

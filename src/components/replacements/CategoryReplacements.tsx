@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
   Button,
@@ -12,6 +12,7 @@ import {
   Dropdown,
   Tag,
   Flex,
+  Layout,
 } from 'antd';
 import {
   PlusOutlined,
@@ -23,6 +24,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { homeDir } from '@tauri-apps/api/path';
 import type { MenuProps } from 'antd';
+import { VariablesPanel } from '../common';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -56,13 +58,19 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [editingTrigger, setEditingTrigger] = useState('');
   const [editingReplace, setEditingReplace] = useState('');
+  const [originalTrigger, setOriginalTrigger] = useState('');
+  const [originalReplace, setOriginalReplace] = useState('');
   const [isNewReplacement, setIsNewReplacement] = useState(false);
+  
+  const textAreaRef = useRef<any>(null);
 
   useEffect(() => {
     // Clear editing state when category changes
     setSelectedIndex(null);
     setEditingTrigger('');
     setEditingReplace('');
+    setOriginalTrigger('');
+    setOriginalReplace('');
     setIsNewReplacement(false);
     setSearchText('');
     
@@ -108,6 +116,8 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     setSelectedIndex(index);
     setEditingTrigger(replacement.trigger);
     setEditingReplace(replacement.replace);
+    setOriginalTrigger(replacement.trigger);
+    setOriginalReplace(replacement.replace);
     setIsNewReplacement(false);
   };
 
@@ -115,7 +125,20 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     setSelectedIndex(null);
     setEditingTrigger('');
     setEditingReplace('');
+    setOriginalTrigger('');
+    setOriginalReplace('');
     setIsNewReplacement(true);
+  };
+
+  const hasChanges = () => {
+    if (isNewReplacement) {
+      // For new replacements, enable save when both fields have content
+      return editingTrigger.trim() !== '' && editingReplace.trim() !== '';
+    } else {
+      // For existing replacements, enable save only when values have actually changed
+      return (editingTrigger !== originalTrigger || editingReplace !== originalReplace) &&
+             editingTrigger.trim() !== '' && editingReplace.trim() !== '';
+    }
   };
 
   const handleDelete = async (index: number) => {
@@ -205,6 +228,8 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       setSelectedIndex(null);
       setEditingTrigger('');
       setEditingReplace('');
+      setOriginalTrigger('');
+      setOriginalReplace('');
       setIsNewReplacement(false);
     } catch (error) {
       console.error('Failed to save replacement:', error);
@@ -243,6 +268,26 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     },
   ];
 
+  const handleVariableInsert = (variable: string) => {
+    if (textAreaRef.current) {
+      const textarea = textAreaRef.current.resizableTextArea?.textArea;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newValue = editingReplace.substring(0, start) + variable + editingReplace.substring(end);
+        setEditingReplace(newValue);
+        
+        // Set cursor position after the inserted variable
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + variable.length, start + variable.length);
+        }, 0);
+      }
+    }
+  };
+
+
+
   if (!category) {
     return (
       <div style={{ padding: '24px' }}>
@@ -252,13 +297,15 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   }
 
   return (
-    <div style={{ 
-      padding: '24px',
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
-      <Card 
+    <Layout style={{ height: '100%', background: 'transparent' }}>
+      <Layout.Content>
+        <div style={{ 
+          padding: '24px',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <Card 
         style={{ 
           flex: 1,
           display: 'flex',
@@ -372,15 +419,15 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                 <Input
                   value={editingTrigger}
                   onChange={(e) => setEditingTrigger(e.target.value)}
-                  placeholder="Enter trigger (e.g., :example)"
+                  placeholder="Enter trigger (e.g., :example, /cmd, #tag)"
                   style={{ marginTop: '8px' }}
-                  prefix=":"
                 />
               </div>
               
               <div style={{ flex: 1 }}>
                 <Text strong>Replacement Text:</Text>
                 <TextArea
+                  ref={textAreaRef}
                   value={editingReplace}
                   onChange={(e) => setEditingReplace(e.target.value)}
                   placeholder="Enter replacement text"
@@ -395,7 +442,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                     type="primary" 
                     icon={<SaveOutlined />}
                     onClick={handleSave}
-                    disabled={!editingTrigger.trim() || !editingReplace.trim()}
+                    disabled={!hasChanges()}
                   >
                     {isNewReplacement ? 'Create' : 'Update'}
                   </Button>
@@ -405,6 +452,8 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                         setSelectedIndex(null);
                         setEditingTrigger('');
                         setEditingReplace('');
+                        setOriginalTrigger('');
+                        setOriginalReplace('');
                         setIsNewReplacement(false);
                       }}
                     >
@@ -418,6 +467,9 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
         )}
       </Card>
 
-    </div>
+        </div>
+      </Layout.Content>
+      <VariablesPanel onVariableSelect={handleVariableInsert} />
+    </Layout>
   );
 };

@@ -13,6 +13,12 @@ interface SelectedReplacement {
   index: number;
 }
 
+interface VariableUsage {
+  trigger: string;
+  category: 'global' | 'base' | 'ai';
+  replace: string;
+}
+
 interface ReplacementContextType {
   // All replacements by category
   globalReplacements: Replacement[];
@@ -36,6 +42,7 @@ interface ReplacementContextType {
   updateReplacement: (trigger: string, replace: string) => Promise<void>;
   createReplacement: (category: 'global' | 'base' | 'ai', trigger: string, replace: string) => Promise<void>;
   deleteReplacement: () => Promise<void>;
+  findVariableUsage: (variable: string) => VariableUsage[];
 }
 
 const ReplacementContext = createContext<ReplacementContextType | undefined>(undefined);
@@ -150,7 +157,7 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const selectMenuItem = useCallback((menuItem: string) => {
     setSelectedMenuItem(menuItem);
     // Clear selected replacement when changing to non-trigger menu items
-    if (!menuItem.includes('-') || ['general-settings', 'espanso-config', 'preferences', 'import-export', 'project-list', 'project-create', 'prompt-library', 'template-editor'].includes(menuItem)) {
+    if (!menuItem.includes('-') || ['general-settings', 'category-settings', 'espanso-config', 'preferences', 'import-export', 'project-list', 'project-create', 'prompt-library', 'template-editor'].includes(menuItem)) {
       setSelectedReplacement(null);
     }
   }, []);
@@ -195,11 +202,12 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Update state
       setReplacements(replacements);
 
-      // Update selected replacement
-      setSelectedReplacement({
-        ...selectedReplacement,
+      // Update selected replacement to reflect the saved changes
+      // This preserves the selection without triggering a form reset
+      setSelectedReplacement(prev => prev ? {
+        ...prev,
         replacement: replacements[index],
-      });
+      } : null);
     } catch (error) {
       console.error('Failed to update replacement:', error);
       throw error;
@@ -306,6 +314,29 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [selectedReplacement, globalReplacements, baseReplacements, aiReplacements]);
 
+  const findVariableUsage = useCallback((variable: string): VariableUsage[] => {
+    const usages: VariableUsage[] = [];
+    
+    // Check all categories
+    const checkReplacements = (replacements: Replacement[], category: 'global' | 'base' | 'ai') => {
+      replacements.forEach(replacement => {
+        if (replacement.replace.includes(variable)) {
+          usages.push({
+            trigger: replacement.trigger,
+            category,
+            replace: replacement.replace,
+          });
+        }
+      });
+    };
+    
+    checkReplacements(globalReplacements, 'global');
+    checkReplacements(baseReplacements, 'base');
+    checkReplacements(aiReplacements, 'ai');
+    
+    return usages;
+  }, [globalReplacements, baseReplacements, aiReplacements]);
+
   const value: ReplacementContextType = {
     globalReplacements,
     baseReplacements,
@@ -320,6 +351,7 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
     updateReplacement,
     createReplacement,
     deleteReplacement,
+    findVariableUsage,
   };
 
   return (

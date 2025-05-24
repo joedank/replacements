@@ -62,29 +62,10 @@ else
     echo "❌ Could not find built app at: $SOURCE_APP"
 fi
 
-# Move .dmg to project root (release builds only)
-if [[ "$BUILD_MODE" == "release" ]]; then
-    SOURCE_DMG="src-tauri/target/release/bundle/dmg/BetterReplacementsManager_0.1.0_aarch64.dmg"
-    DEST_DMG="BetterReplacementsManager_0.1.0_aarch64.dmg"
-    
-    if [ -f "$SOURCE_DMG" ]; then
-        echo "Moving .dmg to project root..."
-        # Remove existing dmg if it exists
-        if [ -f "$DEST_DMG" ]; then
-            rm -f "$DEST_DMG"
-        fi
-        mv "$SOURCE_DMG" "$DEST_DMG"
-        echo "✅ DMG moved to: ./$DEST_DMG"
-    else
-        echo "❌ Could not find built DMG at: $SOURCE_DMG"
-    fi
-fi
+# Note: DMG creation has been disabled in tauri.conf.json (targets: "app" instead of "all")
 
 echo ""
-echo "🎉 Build artifacts in project root:"
+echo "🎉 Build complete!"
 if [ -d "$DEST_APP" ]; then
     echo "   📱 App: ./$DEST_APP"
-fi
-if [[ "$BUILD_MODE" == "release" ]] && [ -f "$DEST_DMG" ]; then
-    echo "   💿 DMG: ./$DEST_DMG"
 fi

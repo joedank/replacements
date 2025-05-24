@@ -6,7 +6,26 @@
       "Bash(npm run typecheck:*)",
       "Bash(./universal_build.sh:*)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm install)",
+      "Bash(convert:*)",
+      "Bash(magick:*)",
+      "Bash(rm:*)",
+      "mcp__think__think",
+      "Bash(ls:*)",
+      "mcp__Ant_Design_Components__search-components",
+      "mcp__Ant_Design_Components__get-component-example",
+      "Bash(git add:*)",
+      "mcp__Context7__resolve-library-id",
+      "mcp__Context7__get-library-docs",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:v2.tauri.app)",
+      "Bash(sed:*)",
+      "Bash(cp:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": []
   }

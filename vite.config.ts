@@ -30,7 +30,6 @@ export default defineConfig(async () => ({
           'react-vendor': ['react', 'react-dom'],
           'antd-vendor': ['antd', '@ant-design/icons'],
           'tauri-vendor': ['@tauri-apps/api'],
-          'utils': ['textarea-caret-position'],
         },
         // Use a consistent naming pattern for chunks
         chunkFileNames: 'assets/js/[name]-[hash].js',

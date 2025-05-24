@@ -27,6 +27,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     - `./BetterReplacementsManager_0.1.0_aarch64.dmg` - The installer (release builds only)
 - All testing must be performed on the built macOS application
 
+### Logging & Debugging
+**View logs during development:**
+- `RUST_LOG=debug ./universal_build.sh` - Shows all logs in terminal
+- macOS Console.app - Filter by "BetterReplacementsManager"
+- Log files at `~/Library/Logs/com.josephmcmyne.betterreplacementsmanager/`
+- See `memory-bank/logging.md` for detailed logging guide
+
 ## Architecture Overview
 
 This is a **Tauri v2 + React + TypeScript** macOS-only desktop application for managing text replacements and AI prompts that integrates with Espanso.

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
+use log::{error, info};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct EspansoMatch {
@@ -38,6 +39,8 @@ struct Project {
     created_at: String,
     #[serde(rename = "updatedAt")]
     updated_at: String,
+    #[serde(rename = "customVariables")]
+    custom_variables: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -65,12 +68,39 @@ struct CategoriesData {
     categories: Vec<Category>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct CustomVariable {
+    id: String,
+    name: String,
+    value: String,
+    preview: Option<String>,
+    description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct CustomVariableCategory {
+    id: String,
+    name: String,
+    icon: String,
+    variables: Vec<CustomVariable>,
+    color: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct VariablesData {
+    categories: Vec<CustomVariableCategory>,
+    #[serde(rename = "lastUpdated")]
+    last_updated: String,
+}
+
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 fn read_espanso_file(file_path: String) -> Result<Vec<Replacement>, String> {
+    info!("Reading Espanso file: {}", file_path);
     let path = Path::new(&file_path);
     
     if !path.exists() {
+        error!("File not found: {}", file_path);
         return Err(format!("File not found: {}", file_path));
     }
     
@@ -98,6 +128,7 @@ fn read_espanso_file(file_path: String) -> Result<Vec<Replacement>, String> {
 
 #[tauri::command]
 fn write_espanso_file(file_path: String, replacements: Vec<Replacement>) -> Result<(), String> {
+    info!("Writing {} replacements to Espanso file: {}", replacements.len(), file_path);
     let path = Path::new(&file_path);
     
     // Convert replacements to EspansoConfig
@@ -182,6 +213,7 @@ fn get_projects() -> Result<ProjectData, String> {
 
 #[tauri::command]
 fn create_project(project: Project) -> Result<(), String> {
+    info!("Creating new project: {}", project.name);
     let mut data = load_project_data()?;
     data.projects.push(project);
     save_project_data(&data)?;
@@ -214,6 +246,15 @@ fn update_project(id: String, updates: Value) -> Result<(), String> {
             if let Some(cmd) = obj.get("logCommand").and_then(|v| v.as_str()) {
                 project.log_command = cmd.to_string();
             }
+            if let Some(custom_vars) = obj.get("customVariables").and_then(|v| v.as_object()) {
+                let mut vars_map = std::collections::HashMap::new();
+                for (key, value) in custom_vars {
+                    if let Some(val_str) = value.as_str() {
+                        vars_map.insert(key.clone(), val_str.to_string());
+                    }
+                }
+                project.custom_variables = Some(vars_map);
+            }
             // Update timestamp
             project.updated_at = chrono::Utc::now().to_rfc3339();
         }
@@ -240,6 +281,7 @@ fn delete_project(id: String) -> Result<(), String> {
 
 #[tauri::command]
 fn set_active_project(id: Option<String>) -> Result<(), String> {
+    info!("Setting active project: {:?}", id);
     let mut data = load_project_data()?;
     
     // Verify project exists if id is provided
@@ -270,7 +312,7 @@ fn update_espanso_project_vars(project: &Project) -> Result<(), String> {
         .join("match")
         .join("project_active_vars.yml");
     
-    let yaml_content = format!(r#"# Generated active project variables for: {}
+    let mut yaml_content = format!(r#"# Generated active project variables for: {}
 global_vars:
   - name: active_project_name
     type: echo
@@ -297,6 +339,18 @@ global_vars:
     params:
       echo: "{}"
 "#, project.name, project.name, project.stack, project.directory, project.restart_command, project.log_command);
+    
+    // Add custom variables if they exist
+    if let Some(custom_vars) = &project.custom_variables {
+        for (key, value) in custom_vars {
+            yaml_content.push_str(&format!(r#"  
+  - name: {}
+    type: echo
+    params:
+      echo: "{}"
+"#, key, value));
+        }
+    }
     
     fs::write(&espanso_path, yaml_content)
         .map_err(|e| format!("Failed to write Espanso project vars: {}", e))?;
@@ -520,9 +574,70 @@ fn delete_category(id: String) -> Result<(), String> {
     save_categories_data(&data)
 }
 
+// Custom variables management functions
+fn get_custom_variables_file_path() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home_dir.join("Library")
+        .join("Application Support")
+        .join("BetterReplacementsManager")
+        .join("custom_variables.json"))
+}
+
+fn load_custom_variables_data() -> Result<VariablesData, String> {
+    let file_path = get_custom_variables_file_path()?;
+    
+    if file_path.exists() {
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read custom variables file: {}", e))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse custom variables data: {}", e))
+    } else {
+        // Return default empty data if file doesn't exist
+        Ok(VariablesData {
+            categories: vec![],
+            last_updated: chrono::Utc::now().to_rfc3339(),
+        })
+    }
+}
+
+fn save_custom_variables_data(data: &VariablesData) -> Result<(), String> {
+    let file_path = get_custom_variables_file_path()?;
+    
+    // Ensure directory exists
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create custom variables directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| format!("Failed to serialize custom variables data: {}", e))?;
+    fs::write(&file_path, json)
+        .map_err(|e| format!("Failed to write custom variables file: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn read_custom_variables() -> Result<VariablesData, String> {
+    load_custom_variables_data()
+}
+
+#[tauri::command]
+fn write_custom_variables(data: VariablesData) -> Result<(), String> {
+    save_custom_variables_data(&data)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::new()
+            .targets([
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+            ])
+            .level(log::LevelFilter::Debug)
+            .build())
         .invoke_handler(tauri::generate_handler![
             read_espanso_file, 
             write_espanso_file,
@@ -536,7 +651,9 @@ pub fn run() {
             get_categories,
             create_category,
             update_category,
-            delete_category
+            delete_category,
+            read_custom_variables,
+            write_custom_variables
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

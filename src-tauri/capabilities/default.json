@@ -4,6 +4,8 @@
   "description": "Default permissions",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "log:allow-log",
+    "log:default"
   ]
 }

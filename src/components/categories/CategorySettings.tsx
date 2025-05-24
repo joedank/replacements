@@ -143,8 +143,8 @@ export const CategorySettings: React.FC = () => {
       const data = await invoke<Category[]>('get_categories');
       setCategories(data);
     } catch (error) {
-      message.error('Failed to load categories');
       console.error('Error loading categories:', error);
+      message.error(`Failed to load categories: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
     }

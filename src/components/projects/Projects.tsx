@@ -13,6 +13,8 @@ import {
   Empty,
   Badge,
   Dropdown,
+  Divider,
+  Checkbox,
 } from 'antd';
 import {
   PlusOutlined,
@@ -28,6 +30,7 @@ import {
   ConsoleSqlOutlined,
 } from '@ant-design/icons';
 import { useProjects } from '../../contexts/ProjectContext';
+import { useVariables } from '../../contexts/VariablesContext';
 import { Project, DEFAULT_PROJECT_VALUES } from '../../types/project';
 import { invoke } from '@tauri-apps/api/core';
 import type { MenuProps } from 'antd';
@@ -45,6 +48,8 @@ export const Projects: React.FC = () => {
     deleteProject,
     setActiveProject,
   } = useProjects();
+  
+  const { categories } = useVariables();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -60,7 +65,26 @@ export const Projects: React.FC = () => {
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
-    form.setFieldsValue(project);
+    
+    // Convert custom variables to array format for the select
+    const customVarKeys = project.customVariables 
+      ? Object.keys(project.customVariables).map(key => `{{${key}}}`)
+      : [];
+    
+    form.setFieldsValue({
+      ...project,
+      customVariables: customVarKeys,
+    });
+    
+    // Set the actual values after a small delay to ensure form is ready
+    setTimeout(() => {
+      if (project.customVariables) {
+        form.setFieldsValue({
+          customVariables: project.customVariables,
+        });
+      }
+    }, 100);
+    
     setIsModalOpen(true);
   };
 
@@ -256,6 +280,16 @@ export const Projects: React.FC = () => {
                           </Text>
                         </Space>
                       </Space>
+                      {project.customVariables && Object.keys(project.customVariables).length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <Text type="secondary" style={{ marginRight: 8 }}>Custom Variables:</Text>
+                          {Object.entries(project.customVariables).map(([key, value]) => (
+                            <Tag key={key} color="purple">
+                              {`{{${key}}}`}: {value}
+                            </Tag>
+                          ))}
+                        </div>
+                      )}
                     </Space>
                   </div>
                   <Dropdown
@@ -365,6 +399,82 @@ export const Projects: React.FC = () => {
               prefix={<FileTextOutlined />}
             />
           </Form.Item>
+
+          <Divider>Custom Variables</Divider>
+          
+          {(() => {
+            const projectVarsCategory = categories.find(c => c.id === 'project-variables');
+            if (!projectVarsCategory || projectVarsCategory.variables.length === 0) {
+              return (
+                <div style={{ marginBottom: 24, textAlign: 'center' }}>
+                  <Text type="secondary">
+                    No custom project variables available. Create them in the Variables Manager.
+                  </Text>
+                </div>
+              );
+            }
+            
+            return (
+              <Space direction="vertical" style={{ width: '100%', marginBottom: 24 }}>
+                <Text type="secondary">
+                  Select which custom variables to include with this project:
+                </Text>
+                {projectVarsCategory.variables.map(variable => {
+                  const varKey = variable.value.replace(/[{}]/g, '');
+                  return (
+                    <div key={variable.id} style={{ marginBottom: 16 }}>
+                      <Space style={{ marginBottom: 8 }}>
+                        <Checkbox
+                          checked={form.getFieldValue(['customVariables', varKey]) !== undefined}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const currentValues = form.getFieldValue('customVariables') || {};
+                            if (checked) {
+                              form.setFieldsValue({
+                                customVariables: {
+                                  ...currentValues,
+                                  [varKey]: variable.preview || '',
+                                }
+                              });
+                            } else {
+                              delete currentValues[varKey];
+                              form.setFieldsValue({ customVariables: currentValues });
+                            }
+                          }}
+                        >
+                          <Text code>{variable.value}</Text>
+                          <Text type="secondary">- {variable.name}</Text>
+                        </Checkbox>
+                      </Space>
+                      
+                      <Form.Item
+                        noStyle
+                        shouldUpdate={(prevValues, currentValues) => 
+                          prevValues.customVariables?.[varKey] !== currentValues.customVariables?.[varKey]
+                        }
+                      >
+                        {({ getFieldValue }) => {
+                          const hasValue = getFieldValue(['customVariables', varKey]) !== undefined;
+                          if (!hasValue) return null;
+                          
+                          return (
+                            <Form.Item
+                              name={['customVariables', varKey]}
+                              label={<Text type="secondary">Value for this project:</Text>}
+                              rules={[{ required: true, message: 'Please enter a value' }]}
+                              style={{ marginLeft: 24 }}
+                            >
+                              <Input placeholder={variable.preview || `Value for ${variable.name}`} />
+                            </Form.Item>
+                          );
+                        }}
+                      </Form.Item>
+                    </div>
+                  );
+                })}
+              </Space>
+            );
+          })()}
 
           <Form.Item>
             <Space>

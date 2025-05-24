@@ -9,6 +9,7 @@ export interface Project {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  customVariables?: Record<string, string>; // key -> value mapping
 }
 
 export interface ProjectVariable {

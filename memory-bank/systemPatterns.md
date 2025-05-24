@@ -133,3 +133,37 @@ App (ConfigProvider)
 - **Shared utilities**: Common functions and types
 - **Type definitions**: Centralized TypeScript interfaces
 - **Constants**: Application-wide constants and configuration
+
+## Critical Naming Convention Issues
+
+### JSON Field Naming (IMPORTANT!)
+**Always use camelCase in JSON files that interface with Rust backend**
+
+The Rust structs use serde rename attributes to convert between JSON camelCase and Rust snake_case:
+```rust
+#[serde(rename = "fileName")]
+file_name: String,
+
+#[serde(rename = "isDefault")]
+is_default: Option<bool>,
+```
+
+**JSON files MUST use camelCase:**
+- ✅ `fileName` (not `file_name`)
+- ✅ `isDefault` (not `is_default`)
+- ✅ `createdAt` (not `created_at`)
+- ✅ `updatedAt` (not `updated_at`)
+
+**Files affected:**
+- `~/Library/Application Support/espanso/config/categories.json`
+- `~/Library/Application Support/BetterReplacementsManager/projects.json`
+
+**Error symptoms:**
+- "Failed to load categories" error in macOS build
+- JSON deserialization failures in Rust backend
+- Data not loading properly in UI components
+
+**Prevention:**
+- Always check JSON field names match Rust serde rename attributes
+- Test with actual macOS build, not just dev server
+- Add better error logging to show actual deserialization errors

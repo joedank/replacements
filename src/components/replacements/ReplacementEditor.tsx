@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Space, Typography, message, Empty, Spin } from 'antd';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Form, Input, Button, Space, Typography, message, Empty, Spin, Layout } from 'antd';
 import { SaveOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useReplacements } from '../../contexts/ReplacementContext';
+import { VariablesPanel } from '../common';
+import { SimpleVariableInsertion } from './SimpleVariableInsertion';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -16,17 +18,23 @@ export const ReplacementEditor: React.FC = () => {
 
   const [form] = Form.useForm();
   const [hasChanges, setHasChanges] = useState(false);
+  const [originalValues, setOriginalValues] = useState<{ trigger: string; replace: string } | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [lastCursorPosition, setLastCursorPosition] = useState<number>(0);
 
   // Update form when selection changes
   useEffect(() => {
     if (selectedReplacement) {
-      form.setFieldsValue({
+      const values = {
         trigger: selectedReplacement.replacement.trigger,
         replace: selectedReplacement.replacement.replace,
-      });
+      };
+      form.setFieldsValue(values);
+      setOriginalValues(values);
       setHasChanges(false);
     } else {
       form.resetFields();
+      setOriginalValues(null);
     }
   }, [selectedReplacement, form]);
 
@@ -35,6 +43,8 @@ export const ReplacementEditor: React.FC = () => {
       const values = await form.validateFields();
       await updateReplacement(values.trigger, values.replace);
       message.success('Replacement saved successfully!');
+      // Update original values after successful save
+      setOriginalValues(values);
       setHasChanges(false);
     } catch (error) {
       console.error('Failed to save replacement:', error);
@@ -52,9 +62,46 @@ export const ReplacementEditor: React.FC = () => {
     }
   };
 
-  const handleFormChange = () => {
-    setHasChanges(true);
+  const handleFormChange = (_: any, allValues: any) => {
+    // Only enable save button if values are actually different from originals
+    if (originalValues) {
+      const hasActualChanges = 
+        allValues.trigger !== originalValues.trigger || 
+        allValues.replace !== originalValues.replace;
+      setHasChanges(hasActualChanges);
+    }
   };
+
+  const handleVariableInsert = (variable: string) => {
+    const currentValue = form.getFieldValue('replace') || '';
+    const textarea = textAreaRef.current;
+    
+    // Use last cursor position if textarea doesn't have focus
+    const start = textarea?.selectionStart ?? lastCursorPosition;
+    const end = textarea?.selectionEnd ?? lastCursorPosition;
+    
+    // Insert at cursor position or at end
+    const newValue = 
+      currentValue.substring(0, start) + 
+      variable + 
+      currentValue.substring(end);
+    
+    form.setFieldsValue({ replace: newValue });
+    
+    // Set cursor position after inserted text
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const newPosition = start + variable.length;
+        textarea.setSelectionRange(newPosition, newPosition);
+        setLastCursorPosition(newPosition);
+      }
+    }, 10);
+    
+    // Trigger form change detection
+    handleFormChange(null, form.getFieldsValue());
+  };
+
 
   if (!selectedReplacement) {
     return (
@@ -74,8 +121,10 @@ export const ReplacementEditor: React.FC = () => {
   };
 
   return (
-    <Card
-      title={
+    <Layout style={{ height: '100%', background: 'transparent' }}>
+      <Layout.Content style={{ padding: '24px' }}>
+        <Card
+          title={
         <Space>
           <Text strong>Edit Replacement</Text>
           <Text
@@ -130,15 +179,39 @@ export const ReplacementEditor: React.FC = () => {
             />
           </Form.Item>
 
+          <SimpleVariableInsertion
+            variables={[
+              { name: 'date', value: '{{date}}', preview: new Date().toLocaleDateString() },
+              { name: 'time', value: '{{time}}', preview: new Date().toLocaleTimeString() },
+              { name: 'project', value: '{{active_project_name}}', preview: 'Active project name' },
+              { name: 'clipboard', value: '{{clipboard}}', preview: 'Current clipboard content' },
+              { name: 'cursor', value: '$|$', preview: 'Cursor position marker' },
+            ]}
+            onInsert={handleVariableInsert}
+          />
+          
           <Form.Item
             name="replace"
             label="Replacement Text"
             rules={[{ required: true, message: 'Please enter replacement text' }]}
           >
             <TextArea
+              ref={textAreaRef}
               rows={10}
               placeholder="Enter the text that will replace the trigger..."
               style={{ fontFamily: 'monospace' }}
+              onBlur={(e) => {
+                // Store cursor position when textarea loses focus
+                setLastCursorPosition(e.target.selectionStart || 0);
+              }}
+              onFocus={(e) => {
+                // Update cursor position when focused
+                setLastCursorPosition(e.target.selectionStart || 0);
+              }}
+              onChange={(e) => {
+                // Track cursor position during typing
+                setLastCursorPosition(e.target.selectionStart || 0);
+              }}
             />
           </Form.Item>
 
@@ -150,5 +223,8 @@ export const ReplacementEditor: React.FC = () => {
         </Form>
       </Spin>
     </Card>
+      </Layout.Content>
+      <VariablesPanel onVariableSelect={handleVariableInsert} />
+    </Layout>
   );
 };
