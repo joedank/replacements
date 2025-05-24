@@ -77,4 +77,44 @@ This is a **Tauri v2 + React + TypeScript** macOS-only desktop application for m
 - Menu triggers are extracted from `matches[].trigger` in YAML
 - Theme system uses both Ant Design tokens and custom CSS variables
 - TypeScript strict mode is enabled - all types must be explicit
-- **JSON files MUST use camelCase** (fileName, isDefault) not snake_case - Rust serde expects this
+
+## ⚠️ CRITICAL: Frontend-Backend Parameter Naming
+
+### Tauri Command Parameters
+**Tauri automatically converts Rust snake_case parameters to frontend camelCase:**
+
+```rust
+// Rust backend function
+#[tauri::command]
+fn read_espanso_file(file_path: String) -> Result<Vec<Replacement>, String>
+```
+
+```typescript
+// Frontend call - MUST use camelCase
+await invoke('read_espanso_file', { filePath: '/path/to/file' });
+```
+
+### Common Parameter Mapping:
+- Rust: `file_path: String` → Frontend: `filePath`
+- Rust: `user_input: String` → Frontend: `userInput`
+- Rust: `project_id: String` → Frontend: `projectId`
+
+### JSON File Naming
+**JSON files interfacing with Rust backend MUST use camelCase:**
+- ✅ `fileName` (not `file_name`)
+- ✅ `isDefault` (not `is_default`)
+- ✅ `createdAt` (not `created_at`)
+- ✅ `updatedAt` (not `updated_at`)
+
+### Environment Differences
+**Frontend environment restrictions:**
+- ❌ `process.env` - Not available in Tauri frontend
+- ✅ `homeDir()` from `@tauri-apps/api/path` - Correct way to get paths
+- ❌ Node.js APIs - Use Tauri APIs instead
+
+### Error Prevention Checklist:
+1. Always check Rust function signatures for parameter names
+2. Convert snake_case to camelCase for frontend calls
+3. Use Tauri APIs (`homeDir()`) instead of Node.js equivalents
+4. Test all CRUD operations after parameter changes
+5. Check error messages for "missing required key" - indicates naming mismatch
