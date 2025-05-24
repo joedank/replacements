@@ -117,3 +117,74 @@ body.dark .custom-scrollbar::-webkit-scrollbar-thumb:active {
 .dark .minimal-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.2);
 }
+
+/* Horizontal scrollbar for tag lists */
+.horizontal-scrollbar {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+  /* Force horizontal overflow scrollbars to always show */
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) - Horizontal scrollbar */
+.horizontal-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background-color: transparent;
+  -webkit-appearance: none !important;
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* Dark theme horizontal scrollbar */
+body.dark .horizontal-scrollbar {
+  /* Firefox */
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+body.dark .horizontal-scrollbar::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+body.dark .horizontal-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+body.dark .horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+body.dark .horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+body.dark .horizontal-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.45);
+}

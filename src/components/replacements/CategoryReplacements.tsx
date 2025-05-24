@@ -21,6 +21,7 @@ import {
   MoreOutlined,
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
+import { homeDir } from '@tauri-apps/api/path';
 import type { MenuProps } from 'antd';
 
 const { Title, Text } = Typography;
@@ -82,14 +83,16 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       if (cat) {
         setCategory(cat);
         
-        // Load replacements for this category
-        const filePath = `/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/${cat.fileName}`;
+        // Load replacements for this category - use full path
+        const homeDirPath = await homeDir();
+        const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${cat.fileName}`;
         const data = await invoke<Replacement[]>('read_espanso_file', { filePath });
         setReplacements(data);
       }
     } catch (error) {
       console.error('Failed to load category replacements:', error);
-      message.error('Failed to load replacements');
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      message.error(`Failed to load replacements: ${error}`);
     }
   };
 
@@ -109,6 +112,11 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   };
 
   const handleDelete = async (index: number) => {
+    if (!category) {
+      message.error('No category selected');
+      return;
+    }
+
     Modal.confirm({
       title: 'Delete Replacement',
       content: 'Are you sure you want to delete this replacement?',
@@ -117,15 +125,23 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
           const newReplacements = [...replacements];
           newReplacements.splice(index, 1);
           
+          const homeDirPath = await homeDir();
+          const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${category.fileName}`;
+          
+          console.log('Deleting from file path:', filePath);
+          console.log('Updated replacements array:', newReplacements);
+          
           await invoke('write_espanso_file', {
-            filePath: replacements[0]?.source || `/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/${category?.fileName}`,
+            filePath,
             replacements: newReplacements,
           });
           
           setReplacements(newReplacements);
           message.success('Replacement deleted successfully');
         } catch (error) {
-          message.error('Failed to delete replacement');
+          console.error('Failed to delete replacement:', error);
+          console.error('Error details:', JSON.stringify(error, null, 2));
+          message.error(`Failed to delete replacement: ${error}`);
         }
       },
     });
@@ -137,12 +153,22 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       return;
     }
 
+    if (!category) {
+      message.error('No category selected');
+      return;
+    }
+
     try {
       const newReplacements = [...replacements];
       
+      const homeDirPath = await homeDir();
+      const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${category.fileName}`;
+      
+      console.log('Saving to file path:', filePath);
+      console.log('New replacements array:', newReplacements);
+
       if (isNewReplacement) {
         // Create new
-        const filePath = `/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/${category?.fileName}`;
         newReplacements.push({
           trigger: editingTrigger,
           replace: editingReplace,
@@ -161,7 +187,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       }
       
       await invoke('write_espanso_file', {
-        filePath: newReplacements[0]?.source || `/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/${category?.fileName}`,
+        filePath,
         replacements: newReplacements,
       });
       
@@ -174,7 +200,9 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       setEditingReplace('');
       setIsNewReplacement(false);
     } catch (error) {
-      message.error('Failed to save replacement');
+      console.error('Failed to save replacement:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      message.error(`Failed to save replacement: ${error}`);
     }
   };
 
@@ -283,13 +311,14 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
           </Empty>
         ) : (
           <>
-            <div style={{ 
-              overflowX: 'auto', 
-              overflowY: 'hidden',
-              padding: '8px 0',
-              marginBottom: '24px',
-              borderBottom: '1px solid #f0f0f0'
-            }}>
+            <div 
+              className="horizontal-scrollbar"
+              style={{ 
+                padding: '8px 0 16px 0',
+                marginBottom: '24px',
+                borderBottom: '1px solid #f0f0f0'
+              }}
+            >
               <Flex gap={8} style={{ minWidth: 'max-content' }}>
                 {filteredReplacements.map((replacement, index) => (
                   <Tag.CheckableTag
