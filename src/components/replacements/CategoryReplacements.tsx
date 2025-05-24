@@ -59,6 +59,13 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const [isNewReplacement, setIsNewReplacement] = useState(false);
 
   useEffect(() => {
+    // Clear editing state when category changes
+    setSelectedIndex(null);
+    setEditingTrigger('');
+    setEditingReplace('');
+    setIsNewReplacement(false);
+    setSearchText('');
+    
     loadCategoryAndReplacements();
   }, [categoryId]);
 
