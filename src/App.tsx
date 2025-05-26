@@ -6,11 +6,9 @@ import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { VariablesProvider } from './contexts/VariablesContext';
 import { SavedExtensionsProvider } from './contexts/SavedExtensionsContext';
-import { DebugPanel } from './components/debug';
 
 // Lazy load components to split them into separate chunks
 const Dashboard = lazy(() => import('./components/dashboard').then(m => ({ default: m.Dashboard })));
-const ReplacementEditor = lazy(() => import('./components/replacements').then(m => ({ default: m.ReplacementEditor })));
 const CategoryReplacements = lazy(() => import('./components/replacements').then(m => ({ default: m.CategoryReplacements })));
 const GeneralSettings = lazy(() => import('./components/settings').then(m => ({ default: m.GeneralSettings })));
 const Projects = lazy(() => import('./components/projects').then(m => ({ default: m.Projects })));
@@ -24,7 +22,7 @@ const LoadingFallback = () => (
 );
 
 function AppContent() {
-  const { selectedReplacement, selectedMenuItem } = useReplacements();
+  const { selectedMenuItem } = useReplacements();
   
   // Render different content based on selected menu item
   if (selectedMenuItem === 'general-settings') {
@@ -72,7 +70,7 @@ function AppContent() {
   return (
     <MainLayout>
       <Suspense fallback={<LoadingFallback />}>
-        {selectedReplacement ? <ReplacementEditor /> : <Dashboard />}
+        <Dashboard />
       </Suspense>
     </MainLayout>
   );
@@ -145,7 +143,6 @@ function ThemedApp() {
           <VariablesProvider>
             <SavedExtensionsProvider>
               <AppContent />
-              <DebugPanel />
             </SavedExtensionsProvider>
           </VariablesProvider>
         </ProjectProvider>

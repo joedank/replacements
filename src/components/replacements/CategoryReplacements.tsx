@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Card,
   Button,
@@ -20,11 +20,19 @@ import {
   CopyOutlined,
   SaveOutlined,
   MoreOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
 import { homeDir } from '@tauri-apps/api/path';
 import type { MenuProps } from 'antd';
 import { InsertionHub } from '../common';
+import { processReplacementPreview, processSavedExtension } from '../../utils/previewProcessor';
+import { useSavedExtensions } from '../../contexts/SavedExtensionsContext';
+import { useDebounce } from '../../hooks/useDebounce';
+import { useProjects } from '../../contexts/ProjectContext';
+import { useVariables } from '../../contexts/VariablesContext';
+import { PROJECT_VARIABLE_MAPPINGS } from '../../types/project';
+import { CustomVariable } from '../../types/variables';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -61,8 +69,54 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const [originalTrigger, setOriginalTrigger] = useState('');
   const [originalReplace, setOriginalReplace] = useState('');
   const [isNewReplacement, setIsNewReplacement] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
   
   const textAreaRef = useRef<any>(null);
+  const { savedExtensions } = useSavedExtensions();
+  const { activeProject } = useProjects();
+  const { categories: variableCategories } = useVariables();
+  
+  // Debounce the replacement text for preview processing
+  const debouncedReplaceText = useDebounce(editingReplace, 150);
+
+  // Memoize preview content to avoid hooks in conditional rendering
+  const previewContent = useMemo(() => {
+    if (!debouncedReplaceText) {
+      return <Text type="secondary" style={{ fontStyle: 'italic' }}>(empty)</Text>;
+    }
+    
+    // Build project variables object
+    const projectVariables: Record<string, string> = {};
+    if (activeProject) {
+      projectVariables[PROJECT_VARIABLE_MAPPINGS.name] = activeProject.name;
+      projectVariables[PROJECT_VARIABLE_MAPPINGS.stack] = activeProject.stack;
+      projectVariables[PROJECT_VARIABLE_MAPPINGS.directory] = activeProject.directory;
+      projectVariables[PROJECT_VARIABLE_MAPPINGS.restartCommand] = activeProject.restartCommand;
+      projectVariables[PROJECT_VARIABLE_MAPPINGS.logCommand] = activeProject.logCommand;
+      
+      // Add custom project variables
+      if (activeProject.customVariables) {
+        Object.entries(activeProject.customVariables).forEach(([key, value]) => {
+          projectVariables[`project_${key}`] = value;
+        });
+      }
+    }
+    
+    // Build custom variables array
+    const customVariables: CustomVariable[] = [];
+    variableCategories.forEach(category => {
+      category.variables.forEach(variable => {
+        customVariables.push(variable);
+      });
+    });
+    
+    let preview = processReplacementPreview(debouncedReplaceText, {
+      projectVariables,
+      customVariables,
+    });
+    preview = processSavedExtension(preview, savedExtensions);
+    return preview;
+  }, [debouncedReplaceText, savedExtensions, activeProject, variableCategories]);
 
   useEffect(() => {
     // Clear editing state when category changes
@@ -298,12 +352,13 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
 
   return (
     <Layout style={{ height: '100%', background: 'transparent' }}>
-      <Layout.Content>
+      <Layout.Content style={{ height: '100%', overflow: 'hidden' }}>
         <div style={{ 
           padding: '24px',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
           <Card 
         style={{ 
@@ -316,7 +371,8 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
           padding: '24px',
           height: '100%',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}
       >
         <div style={{ marginBottom: 24 }}>
@@ -364,13 +420,21 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
             )}
           </Empty>
         ) : (
-          <>
+          <div style={{ 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column',
+            overflow: 'hidden',
+            minHeight: 0
+          }}>
             <div 
               className="horizontal-scrollbar"
               style={{ 
                 padding: '8px 0 16px 0',
                 marginBottom: '24px',
-                borderBottom: '1px solid #f0f0f0'
+                borderBottom: '1px solid #f0f0f0',
+                flexShrink: 0,
+                maxHeight: '60px'
               }}
             >
               <Flex gap={8} style={{ minWidth: 'max-content' }}>
@@ -413,7 +477,17 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
               </Flex>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div 
+              className="custom-scrollbar"
+              style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '16px',
+                overflow: 'auto',
+                paddingRight: '8px'
+              }}
+            >
               <div>
                 <Text strong>Trigger:</Text>
                 <Input
@@ -424,7 +498,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                 />
               </div>
               
-              <div style={{ flex: 1 }}>
+              <div>
                 <Text strong>Replacement Text:</Text>
                 <TextArea
                   ref={textAreaRef}
@@ -437,39 +511,87 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
               </div>
 
               <div>
-                <Space>
-                  <Button 
-                    type="primary" 
-                    icon={<SaveOutlined />}
-                    onClick={handleSave}
-                    disabled={!hasChanges()}
-                  >
-                    {isNewReplacement ? 'Create' : 'Update'}
-                  </Button>
-                  {(selectedIndex !== null || isNewReplacement) && (
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <Space>
                     <Button 
-                      onClick={() => {
-                        setSelectedIndex(null);
-                        setEditingTrigger('');
-                        setEditingReplace('');
-                        setOriginalTrigger('');
-                        setOriginalReplace('');
-                        setIsNewReplacement(false);
+                      type="primary" 
+                      icon={<SaveOutlined />}
+                      onClick={handleSave}
+                      disabled={!hasChanges()}
+                    >
+                      {isNewReplacement ? 'Create' : 'Update'}
+                    </Button>
+                    {(selectedIndex !== null || isNewReplacement) && (
+                      <Button 
+                        onClick={() => {
+                          setSelectedIndex(null);
+                          setEditingTrigger('');
+                          setEditingReplace('');
+                          setOriginalTrigger('');
+                          setOriginalReplace('');
+                          setIsNewReplacement(false);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                    <Button
+                      icon={<EyeOutlined />}
+                      onClick={() => setShowPreview(!showPreview)}
+                      type={showPreview ? 'primary' : 'default'}
+                    >
+                      {showPreview ? 'Hide Preview' : 'Show Preview'}
+                    </Button>
+                  </Space>
+                  
+                  {showPreview && (
+                    <Card 
+                      size="small"
+                      title={
+                        <Space>
+                          <EyeOutlined style={{ color: '#1890ff' }} />
+                          <Text style={{ fontSize: '14px', fontWeight: 500 }}>Live Preview</Text>
+                        </Space>
+                      }
+                      style={{ 
+                        borderColor: '#1890ff',
+                        backgroundColor: 'var(--color-surface-secondary)',
                       }}
                     >
-                      Clear
-                    </Button>
+                      <div style={{ 
+                        whiteSpace: 'pre-wrap', 
+                        fontFamily: 'monospace',
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        color: 'var(--color-text-primary)',
+                        padding: '8px',
+                        backgroundColor: 'var(--color-surface-primary)',
+                        borderRadius: '4px',
+                        minHeight: '60px',
+                        maxHeight: '200px',
+                        overflow: 'auto'
+                      }}>
+                        {previewContent}
+                      </div>
+                    </Card>
                   )}
                 </Space>
               </div>
             </div>
-          </>
+          </div>
         )}
       </Card>
-
         </div>
       </Layout.Content>
-      <InsertionHub onInsert={handleVariableInsert} />
+      <Layout.Sider
+        width={320}
+        style={{
+          background: 'transparent',
+          marginLeft: '16px',
+        }}
+      >
+        <InsertionHub onInsert={handleVariableInsert} />
+      </Layout.Sider>
     </Layout>
   );
 };

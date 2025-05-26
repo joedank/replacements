@@ -7,11 +7,6 @@ export interface Replacement {
   source: string;
 }
 
-interface SelectedReplacement {
-  replacement: Replacement;
-  category: 'global' | 'base' | 'ai';
-  index: number;
-}
 
 interface VariableUsage {
   trigger: string;
@@ -25,9 +20,6 @@ interface ReplacementContextType {
   baseReplacements: Replacement[];
   aiReplacements: Replacement[];
   
-  // Selected replacement
-  selectedReplacement: SelectedReplacement | null;
-  
   // Selected menu item
   selectedMenuItem: string;
   
@@ -37,11 +29,7 @@ interface ReplacementContextType {
   
   // Actions
   loadReplacements: () => Promise<void>;
-  selectReplacement: (category: 'global' | 'base' | 'ai', index: number) => void;
   selectMenuItem: (menuItem: string) => void;
-  updateReplacement: (trigger: string, replace: string) => Promise<void>;
-  createReplacement: (category: 'global' | 'base' | 'ai', trigger: string, replace: string) => Promise<void>;
-  deleteReplacement: () => Promise<void>;
   findVariableUsage: (variable: string) => VariableUsage[];
 }
 
@@ -65,10 +53,9 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [globalReplacements, setGlobalReplacements] = useState<Replacement[]>([]);
   const [baseReplacements, setBaseReplacements] = useState<Replacement[]>([]);
   const [aiReplacements, setAiReplacements] = useState<Replacement[]>([]);
-  const [selectedReplacement, setSelectedReplacement] = useState<SelectedReplacement | null>(null);
   const [selectedMenuItem, setSelectedMenuItem] = useState<string>('dashboard');
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
 
   const loadReplacements = useCallback(async () => {
     setLoading(true);
@@ -129,190 +116,13 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, []);
 
-  const selectReplacement = useCallback((category: 'global' | 'base' | 'ai', index: number) => {
-    let replacements: Replacement[];
-    switch (category) {
-      case 'global':
-        replacements = globalReplacements;
-        break;
-      case 'base':
-        replacements = baseReplacements;
-        break;
-      case 'ai':
-        replacements = aiReplacements;
-        break;
-    }
-
-    if (index >= 0 && index < replacements.length) {
-      setSelectedReplacement({
-        replacement: replacements[index],
-        category,
-        index,
-      });
-      // Clear the selected menu item when selecting a replacement
-      setSelectedMenuItem('');
-    }
-  }, [globalReplacements, baseReplacements, aiReplacements]);
 
   const selectMenuItem = useCallback((menuItem: string) => {
     setSelectedMenuItem(menuItem);
-    // Clear selected replacement when changing to non-trigger menu items
-    if (!menuItem.includes('-') || ['general-settings', 'category-settings', 'espanso-config', 'preferences', 'import-export', 'project-list', 'project-create', 'prompt-library', 'template-editor'].includes(menuItem)) {
-      setSelectedReplacement(null);
-    }
   }, []);
 
-  const updateReplacement = useCallback(async (trigger: string, replace: string) => {
-    if (!selectedReplacement) return;
 
-    setSaving(true);
-    try {
-      const { category, index } = selectedReplacement;
-      let replacements: Replacement[];
-      let setReplacements: React.Dispatch<React.SetStateAction<Replacement[]>>;
 
-      switch (category) {
-        case 'global':
-          replacements = [...globalReplacements];
-          setReplacements = setGlobalReplacements;
-          break;
-        case 'base':
-          replacements = [...baseReplacements];
-          setReplacements = setBaseReplacements;
-          break;
-        case 'ai':
-          replacements = [...aiReplacements];
-          setReplacements = setAiReplacements;
-          break;
-      }
-
-      // Update the replacement in the array
-      replacements[index] = {
-        ...replacements[index],
-        trigger,
-        replace,
-      };
-
-      // Save to file
-      await invoke('write_espanso_file', {
-        filePath: FILE_PATHS[category],
-        replacements,
-      });
-
-      // Update state
-      setReplacements(replacements);
-
-      // Update selected replacement to reflect the saved changes
-      // This preserves the selection without triggering a form reset
-      setSelectedReplacement(prev => prev ? {
-        ...prev,
-        replacement: replacements[index],
-      } : null);
-    } catch (error) {
-      console.error('Failed to update replacement:', error);
-      throw error;
-    } finally {
-      setSaving(false);
-    }
-  }, [selectedReplacement, globalReplacements, baseReplacements, aiReplacements]);
-
-  const createReplacement = useCallback(async (category: 'global' | 'base' | 'ai', trigger: string, replace: string) => {
-    setSaving(true);
-    try {
-      let replacements: Replacement[];
-      let setReplacements: React.Dispatch<React.SetStateAction<Replacement[]>>;
-
-      switch (category) {
-        case 'global':
-          replacements = [...globalReplacements];
-          setReplacements = setGlobalReplacements;
-          break;
-        case 'base':
-          replacements = [...baseReplacements];
-          setReplacements = setBaseReplacements;
-          break;
-        case 'ai':
-          replacements = [...aiReplacements];
-          setReplacements = setAiReplacements;
-          break;
-      }
-
-      // Add new replacement
-      const newReplacement: Replacement = {
-        trigger,
-        replace,
-        source: FILE_PATHS[category],
-      };
-      replacements.push(newReplacement);
-
-      // Save to file
-      await invoke('write_espanso_file', {
-        filePath: FILE_PATHS[category],
-        replacements,
-      });
-
-      // Update state
-      setReplacements(replacements);
-
-      // Select the new replacement
-      setSelectedReplacement({
-        replacement: newReplacement,
-        category,
-        index: replacements.length - 1,
-      });
-    } catch (error) {
-      console.error('Failed to create replacement:', error);
-      throw error;
-    } finally {
-      setSaving(false);
-    }
-  }, [globalReplacements, baseReplacements, aiReplacements]);
-
-  const deleteReplacement = useCallback(async () => {
-    if (!selectedReplacement) return;
-
-    setSaving(true);
-    try {
-      const { category, index } = selectedReplacement;
-      let replacements: Replacement[];
-      let setReplacements: React.Dispatch<React.SetStateAction<Replacement[]>>;
-
-      switch (category) {
-        case 'global':
-          replacements = [...globalReplacements];
-          setReplacements = setGlobalReplacements;
-          break;
-        case 'base':
-          replacements = [...baseReplacements];
-          setReplacements = setBaseReplacements;
-          break;
-        case 'ai':
-          replacements = [...aiReplacements];
-          setReplacements = setAiReplacements;
-          break;
-      }
-
-      // Remove the replacement
-      replacements.splice(index, 1);
-
-      // Save to file
-      await invoke('write_espanso_file', {
-        filePath: FILE_PATHS[category],
-        replacements,
-      });
-
-      // Update state
-      setReplacements(replacements);
-
-      // Clear selection
-      setSelectedReplacement(null);
-    } catch (error) {
-      console.error('Failed to delete replacement:', error);
-      throw error;
-    } finally {
-      setSaving(false);
-    }
-  }, [selectedReplacement, globalReplacements, baseReplacements, aiReplacements]);
 
   const findVariableUsage = useCallback((variable: string): VariableUsage[] => {
     const usages: VariableUsage[] = [];
@@ -341,16 +151,11 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
     globalReplacements,
     baseReplacements,
     aiReplacements,
-    selectedReplacement,
     selectedMenuItem,
     loading,
     saving,
     loadReplacements,
-    selectReplacement,
     selectMenuItem,
-    updateReplacement,
-    createReplacement,
-    deleteReplacement,
     findVariableUsage,
   };
 

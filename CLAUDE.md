@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Essential Commands
-- `./universal_build.sh` - Build and run macOS application for development
-- `./universal_build.sh --release` - Create production macOS .app and .dmg
+- `./universal_build.sh` - Build macOS application in release mode (default)
+- `./universal_build.sh --debug` - Build macOS application in debug mode (shows debug panel)
+- `./universal_build.sh --release` - Build macOS application in release mode (explicit)
 - `npm run typecheck` - Run TypeScript type checking
 - `npm run build` - Build frontend assets only (used internally by build script)
 
@@ -28,9 +29,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - All testing must be performed on the built macOS application
 
 ### Logging & Debugging
+**DevTools (Debug builds only):**
+- Right-click → "Inspect Element" or press Cmd+Option+I to open DevTools
+- Full Chrome DevTools available: Console, Network, Elements, Sources, etc.
+- Only available in debug builds (`./universal_build.sh --debug`)
+- Automatically disabled in release builds for security
+
 **View logs during development:**
-- `RUST_LOG=debug ./universal_build.sh` - Shows all logs in terminal
-- macOS Console.app - Filter by "BetterReplacementsManager"
+- DevTools Console - Shows all JavaScript console.log/debug/info/warn/error messages
+- `RUST_LOG=debug ./universal_build.sh --debug` - Shows Rust backend logs in terminal
+- macOS Console.app - Filter by "BetterReplacementsManager" for system logs
 - Log files at `~/Library/Logs/com.josephmcmyne.betterreplacementsmanager/`
 - See `memory-bank/logging.md` for detailed logging guide
 
