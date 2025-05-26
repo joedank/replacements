@@ -93,6 +93,54 @@ struct VariablesData {
     last_updated: String,
 }
 
+// Saved Extensions structures
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct SavedExtension {
+    id: String,
+    name: String,
+    description: Option<String>,
+    category: Option<String>,
+    tags: Option<Vec<String>>,
+    extension: Value, // JSON representation of the extension
+    #[serde(rename = "createdAt")]
+    created_at: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+    #[serde(rename = "usageCount")]
+    usage_count: i32,
+    #[serde(rename = "isFavorite")]
+    is_favorite: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct SavedExtensionCategory {
+    id: String,
+    name: String,
+    description: Option<String>,
+    color: Option<String>,
+    icon: Option<String>,
+    order: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SavedExtensionSettings {
+    #[serde(rename = "defaultCategory")]
+    default_category: Option<String>,
+    #[serde(rename = "autoSaveOnCreate")]
+    auto_save_on_create: bool,
+    #[serde(rename = "showUsageStats")]
+    show_usage_stats: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SavedExtensionsData {
+    extensions: Vec<SavedExtension>,
+    categories: Vec<SavedExtensionCategory>,
+    settings: SavedExtensionSettings,
+    #[serde(rename = "lastUpdated")]
+    last_updated: String,
+}
+
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 fn read_espanso_file(file_path: String) -> Result<Vec<Replacement>, String> {
@@ -627,6 +675,173 @@ fn write_custom_variables(data: VariablesData) -> Result<(), String> {
     save_custom_variables_data(&data)
 }
 
+// Saved extensions management functions
+fn get_saved_extensions_file_path() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home_dir.join("Library")
+        .join("Application Support")
+        .join("BetterReplacementsManager")
+        .join("saved_extensions.json"))
+}
+
+fn load_saved_extensions_data() -> Result<SavedExtensionsData, String> {
+    let file_path = get_saved_extensions_file_path()?;
+    
+    if file_path.exists() {
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read saved extensions file: {}", e))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse saved extensions data: {}", e))
+    } else {
+        // Return default data with built-in categories if file doesn't exist
+        Ok(create_default_saved_extensions_data())
+    }
+}
+
+fn save_saved_extensions_data(data: &SavedExtensionsData) -> Result<(), String> {
+    let file_path = get_saved_extensions_file_path()?;
+    
+    // Ensure directory exists
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create saved extensions directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| format!("Failed to serialize saved extensions data: {}", e))?;
+    fs::write(&file_path, json)
+        .map_err(|e| format!("Failed to write saved extensions file: {}", e))?;
+    
+    Ok(())
+}
+
+fn create_default_saved_extensions_data() -> SavedExtensionsData {
+    SavedExtensionsData {
+        extensions: vec![],
+        categories: vec![
+            SavedExtensionCategory {
+                id: "development".to_string(),
+                name: "Development".to_string(),
+                description: Some("Scripts and commands for development tasks".to_string()),
+                color: Some("#1890ff".to_string()),
+                icon: Some("CodeOutlined".to_string()),
+                order: 1,
+            },
+            SavedExtensionCategory {
+                id: "productivity".to_string(),
+                name: "Productivity".to_string(),
+                description: Some("Templates and forms for daily workflows".to_string()),
+                color: Some("#52c41a".to_string()),
+                icon: Some("ThunderboltOutlined".to_string()),
+                order: 2,
+            },
+            SavedExtensionCategory {
+                id: "communication".to_string(),
+                name: "Communication".to_string(),
+                description: Some("Email templates, meeting notes, etc.".to_string()),
+                color: Some("#722ed1".to_string()),
+                icon: Some("MessageOutlined".to_string()),
+                order: 3,
+            },
+            SavedExtensionCategory {
+                id: "system".to_string(),
+                name: "System".to_string(),
+                description: Some("System commands and utilities".to_string()),
+                color: Some("#fa8c16".to_string()),
+                icon: Some("SettingOutlined".to_string()),
+                order: 4,
+            },
+            SavedExtensionCategory {
+                id: "personal".to_string(),
+                name: "Personal".to_string(),
+                description: Some("Personal templates and shortcuts".to_string()),
+                color: Some("#eb2f96".to_string()),
+                icon: Some("UserOutlined".to_string()),
+                order: 5,
+            },
+            SavedExtensionCategory {
+                id: "utilities".to_string(),
+                name: "Utilities".to_string(),
+                description: Some("Utility extensions and helpers".to_string()),
+                color: Some("#13c2c2".to_string()),
+                icon: Some("ToolOutlined".to_string()),
+                order: 6,
+            },
+            SavedExtensionCategory {
+                id: "text-processing".to_string(),
+                name: "Text Processing".to_string(),
+                description: Some("Text manipulation and formatting".to_string()),
+                color: Some("#fa541c".to_string()),
+                icon: Some("FontSizeOutlined".to_string()),
+                order: 7,
+            },
+            SavedExtensionCategory {
+                id: "work".to_string(),
+                name: "Work".to_string(),
+                description: Some("Work-related templates and tools".to_string()),
+                color: Some("#2f54eb".to_string()),
+                icon: Some("BankOutlined".to_string()),
+                order: 8,
+            },
+        ],
+        settings: SavedExtensionSettings {
+            default_category: Some("personal".to_string()),
+            auto_save_on_create: false,
+            show_usage_stats: true,
+        },
+        last_updated: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+#[tauri::command]
+fn read_saved_extensions() -> Result<SavedExtensionsData, String> {
+    load_saved_extensions_data()
+}
+
+#[tauri::command]
+fn write_saved_extensions(data: SavedExtensionsData) -> Result<(), String> {
+    save_saved_extensions_data(&data)
+}
+
+#[tauri::command]
+fn save_extension(extension_data: SavedExtension) -> Result<(), String> {
+    let mut data = load_saved_extensions_data()?;
+    
+    // Check if extension with this ID already exists
+    if let Some(index) = data.extensions.iter().position(|e| e.id == extension_data.id) {
+        // Update existing extension
+        data.extensions[index] = extension_data;
+    } else {
+        // Add new extension
+        data.extensions.push(extension_data);
+    }
+    
+    data.last_updated = chrono::Utc::now().to_rfc3339();
+    save_saved_extensions_data(&data)
+}
+
+#[tauri::command]
+fn delete_saved_extension(extension_id: String) -> Result<(), String> {
+    let mut data = load_saved_extensions_data()?;
+    data.extensions.retain(|e| e.id != extension_id);
+    data.last_updated = chrono::Utc::now().to_rfc3339();
+    save_saved_extensions_data(&data)
+}
+
+#[tauri::command]
+fn increment_extension_usage(extension_id: String) -> Result<(), String> {
+    let mut data = load_saved_extensions_data()?;
+    
+    if let Some(extension) = data.extensions.iter_mut().find(|e| e.id == extension_id) {
+        extension.usage_count += 1;
+        extension.updated_at = chrono::Utc::now().to_rfc3339();
+        data.last_updated = chrono::Utc::now().to_rfc3339();
+        save_saved_extensions_data(&data)
+    } else {
+        Err(format!("Extension with ID {} not found", extension_id))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -653,7 +868,12 @@ pub fn run() {
             update_category,
             delete_category,
             read_custom_variables,
-            write_custom_variables
+            write_custom_variables,
+            read_saved_extensions,
+            write_saved_extensions,
+            save_extension,
+            delete_saved_extension,
+            increment_extension_usage
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

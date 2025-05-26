@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Form, Input, Button, Space, Typography, message, Empty, Spin, Layout } from 'antd';
 import { SaveOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useReplacements } from '../../contexts/ReplacementContext';
-import { VariablesPanel } from '../common';
-import { SimpleVariableInsertion } from './SimpleVariableInsertion';
+import { InsertionHub } from '../common';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -122,8 +121,9 @@ export const ReplacementEditor: React.FC = () => {
 
   return (
     <Layout style={{ height: '100%', background: 'transparent' }}>
-      <Layout.Content style={{ padding: '24px' }}>
-        <Card
+      <Layout style={{ background: 'transparent' }}>
+        <Layout.Content style={{ padding: '24px', overflow: 'auto' }}>
+          <Card
           title={
         <Space>
           <Text strong>Edit Replacement</Text>
@@ -179,17 +179,6 @@ export const ReplacementEditor: React.FC = () => {
             />
           </Form.Item>
 
-          <SimpleVariableInsertion
-            variables={[
-              { name: 'date', value: '{{date}}', preview: new Date().toLocaleDateString() },
-              { name: 'time', value: '{{time}}', preview: new Date().toLocaleTimeString() },
-              { name: 'project', value: '{{active_project_name}}', preview: 'Active project name' },
-              { name: 'clipboard', value: '{{clipboard}}', preview: 'Current clipboard content' },
-              { name: 'cursor', value: '$|$', preview: 'Cursor position marker' },
-            ]}
-            onInsert={handleVariableInsert}
-          />
-          
           <Form.Item
             name="replace"
             label="Replacement Text"
@@ -217,14 +206,16 @@ export const ReplacementEditor: React.FC = () => {
 
           <Form.Item>
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Tip: Use \n for line breaks, $|$ for cursor position, and {`{{date}}`} for dynamic variables
+              Tip: Use the Insertion Hub sidebar on the right to add variables, extensions, and special characters. 
+              Use \n for line breaks and $|$ to set cursor position.
             </Text>
           </Form.Item>
         </Form>
       </Spin>
-    </Card>
-      </Layout.Content>
-      <VariablesPanel onVariableSelect={handleVariableInsert} />
+          </Card>
+        </Layout.Content>
+        <InsertionHub onInsert={handleVariableInsert} />
+      </Layout>
     </Layout>
   );
 };

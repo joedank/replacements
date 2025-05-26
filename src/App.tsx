@@ -5,6 +5,7 @@ import { ReplacementProvider, useReplacements } from './contexts/ReplacementCont
 import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { VariablesProvider } from './contexts/VariablesContext';
+import { SavedExtensionsProvider } from './contexts/SavedExtensionsContext';
 import { DebugPanel } from './components/debug';
 
 // Lazy load components to split them into separate chunks
@@ -142,8 +143,10 @@ function ThemedApp() {
       <ReplacementProvider>
         <ProjectProvider>
           <VariablesProvider>
-            <AppContent />
-            <DebugPanel />
+            <SavedExtensionsProvider>
+              <AppContent />
+              <DebugPanel />
+            </SavedExtensionsProvider>
           </VariablesProvider>
         </ProjectProvider>
       </ReplacementProvider>

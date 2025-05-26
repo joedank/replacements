@@ -25,7 +25,10 @@
       "WebFetch(domain:v2.tauri.app)",
       "Bash(sed:*)",
       "Bash(cp:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(rg:*)",
+      "Bash(mv:*)",
+      "Bash(open:*)"
     ],
     "deny": []
   }

@@ -125,3 +125,6 @@ await invoke('read_espanso_file', { filePath: '/path/to/file' });
 3. Use Tauri APIs (`homeDir()`) instead of Node.js equivalents
 4. Test all CRUD operations after parameter changes
 5. Check error messages for "missing required key" - indicates naming mismatch
+
+### Command Line Tools
+- Use ripgrep "rg" rather than grep whenever possible.

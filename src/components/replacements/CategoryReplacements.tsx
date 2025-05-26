@@ -24,7 +24,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { homeDir } from '@tauri-apps/api/path';
 import type { MenuProps } from 'antd';
-import { VariablesPanel } from '../common';
+import { InsertionHub } from '../common';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -60,7 +60,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const [editingReplace, setEditingReplace] = useState('');
   const [originalTrigger, setOriginalTrigger] = useState('');
   const [originalReplace, setOriginalReplace] = useState('');
-  const [isNewReplacement, setIsNewReplacement] = useState(false);
+  const [isNewReplacement, setIsNewReplacement] = useState(true);
   
   const textAreaRef = useRef<any>(null);
 
@@ -71,7 +71,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     setEditingReplace('');
     setOriginalTrigger('');
     setOriginalReplace('');
-    setIsNewReplacement(false);
+    setIsNewReplacement(true);
     setSearchText('');
     
     loadCategoryAndReplacements();
@@ -469,7 +469,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
 
         </div>
       </Layout.Content>
-      <VariablesPanel onVariableSelect={handleVariableInsert} />
+      <InsertionHub onInsert={handleVariableInsert} />
     </Layout>
   );
 };

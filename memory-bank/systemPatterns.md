@@ -24,7 +24,8 @@
 │  │  │     Context Providers       │ │ │
 │  │  │  - ReplacementContext       │ │ │
 │  │  │  - ProjectContext           │ │ │
-│  │  │  - TemplateContext          │ │ │
+│  │  │  - VariablesContext         │ │ │
+│  │  │  - SavedExtensionsContext   │ │ │
 │  │  └─────────────────────────────┘ │ │
 │  └─────────────────────────────────┘ │
 └─────────────────────────────────────┘
@@ -34,6 +35,8 @@
 │  │      File System Operations     │ │
 │  │      - read_espanso_file       │ │
 │  │      - write_espanso_file      │ │
+│  │      - read_saved_extensions    │ │
+│  │      - write_saved_extensions   │ │
 │  │      Espanso Integration        │ │
 │  │      Configuration Management   │ │
 │  └─────────────────────────────────┘ │
@@ -101,18 +104,33 @@ App (ConfigProvider)
 │   │   ├── Toggle Button
 │   │   └── App Title
 │   ├── Content Area
-│   │   └── Dashboard (or selected component)
+│   │   └── CategoryReplacements (dynamic content)
+│   │       ├── ReplacementEditor
+│   │       └── InsertionHub (right sidebar)
 │   └── Footer
 ├── Context Providers
 │   ├── ReplacementProvider (implemented)
 │   │   └── Manages replacement state and operations
-│   ├── ProjectProvider (planned)
-│   └── TemplateProvider (planned)
+│   ├── ProjectProvider (implemented)
+│   │   └── Manages project data and active project
+│   ├── VariablesProvider (implemented)
+│   │   └── Manages custom variables with categories
+│   └── SavedExtensionsProvider (implemented)
+│       └── Manages saved Espanso extensions
 └── Page Components
     ├── Dashboard
-    ├── ReplacementEditor (implemented)
-    │   └── Form-based editing with validation
-    ├── ProjectManager (planned)
+    ├── CategoryReplacements (implemented)
+    │   ├── ReplacementEditor
+    │   │   └── Form-based editing with validation
+    │   └── InsertionHub
+    │       ├── System Variables
+    │       ├── Project Variables
+    │       ├── Custom Variables
+    │       ├── My Saved Extensions
+    │       └── Extension Builder
+    ├── ExtensionBuilder (implemented)
+    │   └── All Espanso extension types
+    ├── SavedExtensionsManager (implemented)
     └── Settings
 ```
 

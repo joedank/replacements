@@ -22,7 +22,7 @@
 - **Build Artifacts**: Automated movement of .app and .dmg files to project root
 - **Design System**: CSS variables + TypeScript design tokens for consistent styling
 - **Component Library**: Reusable UI components with proper TypeScript interfaces
-- **Tauri Commands**: Implemented `read_espanso_file` command for YAML parsing
+- **Tauri Commands**: Implemented `read_espanso_file` and `write_espanso_file` commands for YAML parsing
 - **Dynamic Menu System**: Sidebar dynamically loads and displays triggers from YAML files
 - **Trigger Selection**: Click handlers on sidebar items for selecting replacements
 - **ReplacementContext**: Complete state management for all replacement operations
@@ -30,6 +30,10 @@
 - **YAML Persistence**: Full read/write capability for Espanso configuration files
 - **Form Validation**: Input validation for triggers and replacement text
 - **User Feedback**: Success/error messages for save and delete operations
+- **InsertionHub**: Unified sidebar for inserting variables and extensions with search/filter
+- **Extension Builder**: Complete UI for all Espanso extension types (date, choice, random, etc.)
+- **Saved Extensions**: Full CRUD system for saving and reusing configured extensions
+- **Multiple Contexts**: VariablesContext, SavedExtensionsContext for modular state management
 
 ### UI Layout Complete
 - **Main Layout**: Full-height collapsible sidebar with navigation menu
@@ -86,12 +90,16 @@
 - Documentation system
 
 ### Phase 2: Core Features 🔄 IN PROGRESS
-- ✅ State management implementation (ReplacementContext complete)
-- ✅ Basic UI components (ReplacementEditor complete)
-- ✅ File system integration (read/write YAML files)
-- 🔄 Core replacement management (update/delete done, create next)
-- 📋 Search and filtering
-- 📋 Project organization
+- ✅ State management implementation (ReplacementContext, VariablesContext, SavedExtensionsContext complete)
+- ✅ Basic UI components (ReplacementEditor, InsertionHub, ExtensionBuilder complete)
+- ✅ File system integration (read/write YAML files and JSON storage)
+- ✅ Core replacement management (update/delete complete)
+- ✅ Variable insertion system (system, project, custom variables)
+- ✅ Extension builder for all Espanso types
+- ✅ Saved extensions with full management UI
+- 🔄 Create new replacement UI (next priority)
+- 📋 Search and filtering (partially implemented in InsertionHub)
+- 📋 Advanced project organization features
 
 ### Phase 3: Advanced Features 📋 PLANNED
 - AI integration features

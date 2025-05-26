@@ -71,3 +71,14 @@
     --color-text-muted: #9ca3af;
   }
 }
+
+/* Manual dark mode class */
+body.dark,
+html.dark {
+  --color-bg-primary: #111827;
+  --color-bg-secondary: #1f2937;
+  --color-bg-tertiary: #374151;
+  --color-text-primary: #f9fafb;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #9ca3af;
+}

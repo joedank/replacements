@@ -17,13 +17,19 @@
 - ✅ **Trigger Editing**: Full editing interface for triggers and replacement text with save/delete functionality
 - ✅ **State Management**: ReplacementContext manages all replacement data and selection state
 - ✅ **YAML Persistence**: Tauri commands for reading and writing Espanso YAML files
+- ✅ **Variable Insertion**: Unified InsertionHub sidebar with system variables, project variables, and extensions
+- ✅ **Custom Variables**: Full CRUD implementation for user-defined variables with categories
+- ✅ **Espanso Extensions**: Complete extension builder UI for all Espanso extension types
+- ✅ **Saved Extensions**: Comprehensive saved extensions system with categories, favorites, and usage tracking
 
 ## Current Work Focus
-**Trigger Editing Feature Complete** - Successfully implemented the ability to click on triggers in the sidebar and edit both the trigger and replacement text. Changes are saved back to the YAML files. The implementation includes:
-- ReplacementContext for state management
-- ReplacementEditor component with form validation
-- Full CRUD operations (update and delete implemented, create ready)
-- Tauri backend integration with `write_espanso_file` command
+**Advanced Features Implementation Complete** - Successfully implemented comprehensive variable and extension management system:
+- **InsertionHub**: Unified sidebar for inserting system variables, project variables, custom variables, and Espanso extensions
+- **Extension Builder**: Full UI for creating all Espanso extension types (date, choice, random, clipboard, echo, script, shell, form)
+- **Saved Extensions System**: Save, load, organize, and reuse configured extensions with categories, tags, and favorites
+- **SavedExtensionsManager**: Comprehensive management UI with search, filter, sort, edit, delete, and export/import functionality
+- **VariablesContext & SavedExtensionsContext**: Clean state management for custom variables and saved extensions
+- **Rust Backend**: Complete CRUD operations for saved extensions with file-based JSON storage
 
 ## Next Immediate Steps
 1. **Create New Replacement**: Add UI for creating new replacements in each category
@@ -82,6 +88,10 @@
 - **State Management**: React Context API provides clean separation between UI and data management
 - **Form Validation**: Ant Design Form component handles validation for trigger/replacement editing
 - **Tauri Commands**: Bidirectional communication with `read_espanso_file` and `write_espanso_file`
+- **Variable Naming Conflicts**: Careful with form validation callbacks - parameter names can shadow state variables
+- **Extension State**: ExtensionBuilder requires both `extension` object AND `variableName` to enable save/insert buttons
+- **Form Alignment**: Ant Design Space component with `align="end"` can cause unexpected alignments; use flexbox for predictable layouts
+- **Multiple Forms**: When using multiple Ant Design forms in one component, ensure proper form instance isolation
 
 ## Environment Notes
 - **Location**: `/Volumes/4TB/Users/josephmcmyne/myProjects/BRM`
