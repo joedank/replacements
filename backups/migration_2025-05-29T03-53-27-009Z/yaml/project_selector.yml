@@ -1,0 +1,13 @@
+# Generated project selector for quick switching
+matches:
+  - trigger: ":project"
+    replace: "{{project_choice}}"
+    vars:
+      - name: project_choice
+        type: choice
+        params:
+          values:
+          - label: Better replacements manager
+            id: "6f0d16f6-255e-49f6-b675-b7f7d618e9ba"
+          - label: AR Dash
+            id: "a7470b6b-c453-4205-a1f2-40e93a9f6603"

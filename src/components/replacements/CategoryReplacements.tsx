@@ -12,7 +12,9 @@ import {
   Dropdown,
   Tag,
   Flex,
-  Layout,
+  Select,
+  Checkbox,
+  List,
 } from 'antd';
 import {
   PlusOutlined,
@@ -21,17 +23,23 @@ import {
   SaveOutlined,
   MoreOutlined,
   EyeOutlined,
+  ExpandOutlined,
+  RobotOutlined,
+  ImportOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
 import { homeDir } from '@tauri-apps/api/path';
 import type { MenuProps } from 'antd';
 import { InsertionHub } from '../common';
-import { processReplacementPreview, processSavedExtension } from '../../utils/previewProcessor';
+import { processReplacementPreview, processSavedExtension, enhancePreviewWithValidation, VariableValidationResult } from '../../utils/previewProcessor';
+import { ParsedVariable } from '../../utils/variableParser';
 import { useSavedExtensions } from '../../contexts/SavedExtensionsContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useVariables } from '../../contexts/VariablesContext';
-import { PROJECT_VARIABLE_MAPPINGS } from '../../types/project';
+import { useLLMContext } from '../../contexts/LLMContext';
+import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
 import { CustomVariable } from '../../types/variables';
 
 const { Title, Text } = Typography;
@@ -55,7 +63,12 @@ interface Category {
 }
 
 interface CategoryReplacementsProps {
-  categoryId: string;
+  categoryId: string; // Now represents fileName without .yml extension
+}
+
+interface PreviewContentResult {
+  preview: string;
+  validationResult: VariableValidationResult;
 }
 
 export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ categoryId }) => {
@@ -70,36 +83,54 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const [originalReplace, setOriginalReplace] = useState('');
   const [isNewReplacement, setIsNewReplacement] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [showExpandedEditor, setShowExpandedEditor] = useState(false);
+  const [modalReplaceText, setModalReplaceText] = useState('');
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiDescription, setAIDescription] = useState('');
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importedReplacements, setImportedReplacements] = useState<Replacement[]>([]);
+  const [selectedImports, setSelectedImports] = useState<string[]>([]);
+  const [browsedFilePath, setBrowsedFilePath] = useState<string | null>(null);
   
   const textAreaRef = useRef<any>(null);
+  const modalTextAreaRef = useRef<any>(null);
   const { savedExtensions } = useSavedExtensions();
   const { activeProject } = useProjects();
   const { categories: variableCategories } = useVariables();
+  const { generateReplacement, loadConfigs } = useLLMContext();
+  const { categories: projectCategories } = useProjectCategories();
   
   // Debounce the replacement text for preview processing
   const debouncedReplaceText = useDebounce(editingReplace, 150);
 
   // Memoize preview content to avoid hooks in conditional rendering
-  const previewContent = useMemo(() => {
+  const previewContent = useMemo((): React.ReactElement | PreviewContentResult => {
     if (!debouncedReplaceText) {
       return <Text type="secondary" style={{ fontStyle: 'italic' }}>(empty)</Text>;
     }
     
-    // Build project variables object
+    // Build project variables object from category values
     const projectVariables: Record<string, string> = {};
     if (activeProject) {
-      projectVariables[PROJECT_VARIABLE_MAPPINGS.name] = activeProject.name;
-      projectVariables[PROJECT_VARIABLE_MAPPINGS.stack] = activeProject.stack;
-      projectVariables[PROJECT_VARIABLE_MAPPINGS.directory] = activeProject.directory;
-      projectVariables[PROJECT_VARIABLE_MAPPINGS.restartCommand] = activeProject.restartCommand;
-      projectVariables[PROJECT_VARIABLE_MAPPINGS.logCommand] = activeProject.logCommand;
-      
-      // Add custom project variables
-      if (activeProject.customVariables) {
-        Object.entries(activeProject.customVariables).forEach(([key, value]) => {
-          projectVariables[`project_${key}`] = value;
+      // Handle new category-based structure
+      if (activeProject.categoryValues && projectCategories) {
+        projectCategories.forEach(category => {
+          const categoryValues = activeProject.categoryValues?.[category.id] || {};
+          category.variableDefinitions.forEach(varDef => {
+            const value = categoryValues[varDef.id] || varDef.defaultValue;
+            if (value) {
+              projectVariables[varDef.name] = value;
+            }
+          });
         });
       }
+      
+      // Always include the project name for legacy compatibility
+      projectVariables['active_project_name'] = activeProject.name;
     }
     
     // Build custom variables array
@@ -110,12 +141,18 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       });
     });
     
-    let preview = processReplacementPreview(debouncedReplaceText, {
+    // Use enhanced validation for variable detection
+    const validationResult = enhancePreviewWithValidation(debouncedReplaceText, {
       projectVariables,
       customVariables,
+      projectCategories,
+      activeProjectCategoryId: activeProject?.categoryId,
     });
-    preview = processSavedExtension(preview, savedExtensions);
-    return preview;
+    
+    let preview = processSavedExtension(validationResult.preview, savedExtensions);
+    
+    // Return preview with validation info
+    return { preview, validationResult };
   }, [debouncedReplaceText, savedExtensions, activeProject, variableCategories]);
 
   useEffect(() => {
@@ -129,7 +166,9 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     setSearchText('');
     
     loadCategoryAndReplacements();
-  }, [categoryId]);
+    // Reload LLM configs to ensure we have the latest
+    loadConfigs();
+  }, [categoryId, projectCategories, loadConfigs]);
 
   useEffect(() => {
     // Filter replacements based on search text
@@ -146,15 +185,25 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
 
   const loadCategoryAndReplacements = async () => {
     try {
-      // Load category info
-      const categories = await invoke<Category[]>('get_categories');
-      const cat = categories.find(c => c.id === categoryId);
+      // Find category from project categories using fileName
+      const fileName = `${categoryId}.yml`;
+      const cat = projectCategories.find(c => c.fileName === fileName);
       if (cat) {
-        setCategory(cat);
+        // Convert project category to legacy category format for compatibility
+        const legacyCategory: Category = {
+          id: cat.id,
+          name: cat.name,
+          fileName: cat.fileName || fileName,
+          description: cat.description,
+          icon: cat.icon || 'FileTextOutlined',
+          color: cat.color,
+          isDefault: cat.isDefault,
+        };
+        setCategory(legacyCategory);
         
         // Load replacements for this category - use full path
         const homeDirPath = await homeDir();
-        const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${cat.fileName}`;
+        const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${fileName}`;
         const data = await invoke<Replacement[]>('read_espanso_file', { filePath });
         setReplacements(data);
       }
@@ -323,7 +372,23 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   ];
 
   const handleVariableInsert = (variable: string) => {
-    if (textAreaRef.current) {
+    // If modal is open, insert into modal textarea
+    if (showExpandedEditor && modalTextAreaRef.current) {
+      const textarea = modalTextAreaRef.current.resizableTextArea?.textArea;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newValue = modalReplaceText.substring(0, start) + variable + modalReplaceText.substring(end);
+        setModalReplaceText(newValue);
+        
+        // Set cursor position after the inserted variable
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + variable.length, start + variable.length);
+        }, 0);
+      }
+    } else if (textAreaRef.current) {
+      // Otherwise insert into main textarea
       const textarea = textAreaRef.current.resizableTextArea?.textArea;
       if (textarea) {
         const start = textarea.selectionStart;
@@ -340,6 +405,239 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     }
   };
 
+  const handleOpenExpandedEditor = () => {
+    setModalReplaceText(editingReplace);
+    setShowExpandedEditor(true);
+  };
+
+  const handleCloseExpandedEditor = () => {
+    setEditingReplace(modalReplaceText);
+    setShowExpandedEditor(false);
+  };
+
+  const handleCancelExpandedEditor = () => {
+    setShowExpandedEditor(false);
+    setModalReplaceText('');
+  };
+
+  const handleOpenImportModal = async () => {
+    try {
+      // Get list of available YAML files
+      const files = await invoke<string[]>('list_espanso_yaml_files');
+      // Filter out the current category file and system files
+      const filteredFiles = files.filter(f => 
+        f !== category?.fileName && 
+        !f.startsWith('project_') &&
+        f !== 'categories.json'
+      );
+      setAvailableFiles(filteredFiles);
+      setShowImportModal(true);
+      setSelectedFile(null);
+      setImportedReplacements([]);
+      setSelectedImports([]);
+    } catch (error) {
+      console.error('Failed to list YAML files:', error);
+      message.error('Failed to list available files');
+    }
+  };
+
+  const handleSelectImportFile = async (fileName: string | null) => {
+    try {
+      if (!fileName) return;
+      
+      setSelectedFile(fileName);
+      setBrowsedFilePath(null); // Clear browsed file when selecting from dropdown
+      
+      const homeDirPath = await homeDir();
+      const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${fileName}`;
+      const data = await invoke<Replacement[]>('read_espanso_file', { filePath });
+      setImportedReplacements(data);
+      // By default, select all non-duplicate replacements
+      const existingTriggers = new Set(replacements.map(r => r.trigger));
+      const nonDuplicates = data.filter(r => !existingTriggers.has(r.trigger)).map(r => r.trigger);
+      setSelectedImports(nonDuplicates);
+    } catch (error) {
+      console.error('Failed to read import file:', error);
+      message.error('Failed to read selected file');
+    }
+  };
+
+  const handleBrowseFile = async () => {
+    try {
+      const filePath = await invoke<string | null>('select_yaml_file');
+      if (filePath) {
+        setBrowsedFilePath(filePath);
+        setSelectedFile(null); // Clear dropdown selection
+        
+        const data = await invoke<Replacement[]>('read_espanso_file', { filePath });
+        setImportedReplacements(data);
+        // By default, select all non-duplicate replacements
+        const existingTriggers = new Set(replacements.map(r => r.trigger));
+        const nonDuplicates = data.filter(r => !existingTriggers.has(r.trigger)).map(r => r.trigger);
+        setSelectedImports(nonDuplicates);
+      }
+    } catch (error) {
+      console.error('Failed to browse file:', error);
+      message.error('Failed to browse for file');
+    }
+  };
+
+  const handleDeleteFile = async (fileName: string) => {
+    Modal.confirm({
+      title: 'Delete File',
+      content: `Are you sure you want to delete "${fileName}"? This action cannot be undone.`,
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await invoke('delete_espanso_yaml_file', { fileName });
+          message.success(`Deleted ${fileName}`);
+          
+          // Refresh the file list
+          const files = await invoke<string[]>('list_espanso_yaml_files');
+          const filteredFiles = files.filter(f => 
+            f !== category?.fileName && 
+            !f.startsWith('project_') &&
+            f !== 'categories.json'
+          );
+          setAvailableFiles(filteredFiles);
+          
+          // Clear selection if the deleted file was selected
+          if (selectedFile === fileName) {
+            setSelectedFile(null);
+            setImportedReplacements([]);
+            setSelectedImports([]);
+          }
+        } catch (error) {
+          console.error('Failed to delete file:', error);
+          message.error(`Failed to delete file: ${error}`);
+        }
+      },
+    });
+  };
+
+  const handleImport = async () => {
+    if (!category || selectedImports.length === 0) {
+      message.warning('Please select replacements to import');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const newReplacements = [...replacements];
+      const homeDirPath = await homeDir();
+      const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${category.fileName}`;
+      
+      // Add selected replacements
+      const replacementsToImport = importedReplacements.filter(r => 
+        selectedImports.includes(r.trigger)
+      );
+      
+      replacementsToImport.forEach(r => {
+        newReplacements.push({
+          trigger: r.trigger,
+          replace: r.replace,
+          source: filePath,
+        });
+      });
+      
+      await invoke('write_espanso_file', {
+        filePath,
+        replacements: newReplacements,
+      });
+      
+      setReplacements(newReplacements);
+      message.success(`Imported ${replacementsToImport.length} replacements successfully`);
+      setShowImportModal(false);
+    } catch (error) {
+      console.error('Failed to import replacements:', error);
+      message.error('Failed to import replacements');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    if (!aiDescription.trim()) {
+      message.warning('Please describe what you want to generate');
+      return;
+    }
+
+    setIsAIGenerating(true);
+    try {
+      // Build context about available variables
+      const contextParts = [];
+      
+      if (activeProject) {
+        contextParts.push(`Active project: ${activeProject.name}`);
+        
+        // Add category-based variables if available
+        if (activeProject.categoryValues && projectCategories) {
+          const projectVars: string[] = [];
+          projectCategories.forEach(category => {
+            const categoryValues = activeProject.categoryValues?.[category.id] || {};
+            category.variableDefinitions.forEach(varDef => {
+              const value = categoryValues[varDef.id] || varDef.defaultValue;
+              if (value) {
+                projectVars.push(`{{${varDef.name}}} - ${varDef.description || varDef.name}`);
+              }
+            });
+          });
+          if (projectVars.length > 0) {
+            contextParts.push(`Project variables: ${projectVars.join(', ')}`);
+          }
+        }
+        // Always include system variables in context
+        else {
+          // Build project variables from categories
+          const projectVars: string[] = [`{{active_project_name}} - ${activeProject.name}`];
+          
+          if (activeProject.categoryValues && projectCategories) {
+            projectCategories.forEach(category => {
+              const categoryValues = activeProject.categoryValues?.[category.id] || {};
+              category.variableDefinitions.forEach(varDef => {
+                const value = categoryValues[varDef.id] || varDef.defaultValue;
+                if (value) {
+                  projectVars.push(`{{${varDef.name}}} - ${value}`);
+                }
+              });
+            });
+          }
+          
+          if (projectVars.length > 1) {
+            contextParts.push(`Project variables: ${projectVars.join(', ')}`);
+          }
+        }
+      }
+
+      // Add custom variables context
+      const allCustomVars: string[] = [];
+      variableCategories.forEach(cat => {
+        cat.variables.forEach(v => {
+          allCustomVars.push(`{{${v.name}}} - ${v.value}`);
+        });
+      });
+      if (allCustomVars.length > 0) {
+        contextParts.push(`Available variables: ${allCustomVars.slice(0, 10).join(', ')}${allCustomVars.length > 10 ? '...' : ''}`);
+      }
+
+      const contextPrompt = contextParts.length > 0 
+        ? `\n\nContext:\n${contextParts.join('\n')}\n\nUse relevant variables where appropriate.`
+        : '';
+
+      const generatedText = await generateReplacement(aiDescription + contextPrompt);
+      setEditingReplace(generatedText);
+      setShowAIModal(false);
+      setAIDescription('');
+      message.success('Replacement generated successfully!');
+    } catch (error) {
+      console.error('Failed to generate replacement:', error);
+      message.error('Failed to generate replacement. Please check your API settings.');
+    } finally {
+      setIsAIGenerating(false);
+    }
+  };
+
 
 
   if (!category) {
@@ -351,8 +649,14 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   }
 
   return (
-    <Layout style={{ height: '100%', background: 'transparent' }}>
-      <Layout.Content style={{ height: '100%', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', background: 'transparent' }}>
+      <div style={{ 
+        flex: 1,
+        height: '100%', 
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
         <div style={{ 
           padding: '24px',
           height: '100%',
@@ -392,6 +696,12 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                   style={{ width: 300 }}
                   allowClear
                 />
+                <Button 
+                  icon={<ImportOutlined />} 
+                  onClick={handleOpenImportModal}
+                >
+                  Import
+                </Button>
                 <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateNew}>
                   New Replacement
                 </Button>
@@ -499,13 +809,35 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
               </div>
               
               <div>
-                <Text strong>Replacement Text:</Text>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <Text strong>Replacement Text:</Text>
+                  <Space>
+                    <Button
+                      type="text"
+                      icon={<RobotOutlined />}
+                      size="small"
+                      onClick={() => setShowAIModal(true)}
+                      title="Generate with AI"
+                    >
+                      AI Generate
+                    </Button>
+                    <Button
+                      type="text"
+                      icon={<ExpandOutlined />}
+                      size="small"
+                      onClick={handleOpenExpandedEditor}
+                      title="Expand editor"
+                    >
+                      Expand
+                    </Button>
+                  </Space>
+                </div>
                 <TextArea
                   ref={textAreaRef}
                   value={editingReplace}
                   onChange={(e) => setEditingReplace(e.target.value)}
                   placeholder="Enter replacement text"
-                  style={{ marginTop: '8px', minHeight: '120px' }}
+                  style={{ minHeight: '120px' }}
                   autoSize={{ minRows: 4, maxRows: 10 }}
                 />
               </div>
@@ -563,7 +895,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                         fontFamily: 'monospace',
                         fontSize: '14px',
                         lineHeight: '1.6',
-                        color: 'var(--color-text-primary)',
+                        color: 'rgba(0, 0, 0, 0.88)',
                         padding: '8px',
                         backgroundColor: 'var(--color-surface-primary)',
                         borderRadius: '4px',
@@ -571,7 +903,28 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                         maxHeight: '200px',
                         overflow: 'auto'
                       }}>
-                        {previewContent}
+                        {React.isValidElement(previewContent) ? previewContent : (() => {
+                          const result = previewContent as PreviewContentResult;
+                          return (
+                            <>
+                              {result.preview}
+                              {result.validationResult.undefinedVariables.length > 0 && (
+                                <div style={{ marginTop: '8px', padding: '4px 8px', backgroundColor: 'rgba(255, 193, 7, 0.1)', borderRadius: '4px' }}>
+                                  <Text type="warning" style={{ fontSize: '12px' }}>
+                                    Undefined variables: {result.validationResult.undefinedVariables.map((v: ParsedVariable) => v.name).join(', ')}
+                                  </Text>
+                                  {result.validationResult.projectSuggestions.length > 0 && (
+                                    <div style={{ marginTop: '4px' }}>
+                                      {result.validationResult.projectSuggestions.map((suggestion: string, index: number) => (
+                                        <Tag key={index} color="warning">{suggestion}</Tag>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </Card>
                   )}
@@ -582,16 +935,332 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
         )}
       </Card>
         </div>
-      </Layout.Content>
-      <Layout.Sider
-        width={320}
-        style={{
-          background: 'transparent',
-          marginLeft: '16px',
-        }}
+      </div>
+      <InsertionHub onInsert={handleVariableInsert} />
+      
+      <Modal
+        title={
+          <Space>
+            <ExpandOutlined />
+            <span>Edit Replacement Text</span>
+          </Space>
+        }
+        open={showExpandedEditor}
+        onOk={handleCloseExpandedEditor}
+        onCancel={handleCancelExpandedEditor}
+        width={800}
+        centered
+        okText="Apply"
+        cancelText="Cancel"
+        bodyStyle={{ padding: '24px' }}
       >
-        <InsertionHub onInsert={handleVariableInsert} />
-      </Layout.Sider>
-    </Layout>
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+              Trigger: <Text code>{editingTrigger || '(not set)'}</Text>
+            </Text>
+          </div>
+          
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '8px' }}>Replacement Text:</Text>
+            <TextArea
+              ref={modalTextAreaRef}
+              value={modalReplaceText}
+              onChange={(e) => setModalReplaceText(e.target.value)}
+              placeholder="Enter replacement text"
+              autoSize={{ minRows: 15, maxRows: 30 }}
+              style={{ 
+                fontFamily: 'monospace',
+                fontSize: '14px',
+                lineHeight: '1.6'
+              }}
+            />
+          </div>
+          
+          {showPreview && (
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                <EyeOutlined style={{ marginRight: '4px' }} />
+                Live Preview:
+              </Text>
+              <Card 
+                size="small"
+                style={{ 
+                  backgroundColor: 'var(--color-surface-secondary)',
+                  maxHeight: '200px',
+                  overflow: 'auto'
+                }}
+              >
+                <div style={{ 
+                  whiteSpace: 'pre-wrap', 
+                  fontFamily: 'monospace',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: 'rgba(0, 0, 0, 0.88)',
+                }}>
+                  {processSavedExtension(processReplacementPreview(modalReplaceText, {
+                    projectVariables: (() => {
+                      const projectVariables: Record<string, string> = {};
+                      if (activeProject) {
+                        // Add project name for legacy compatibility
+                        projectVariables['active_project_name'] = activeProject.name;
+                        
+                        // Add category variables
+                        if (activeProject.categoryValues && projectCategories) {
+                          projectCategories.forEach(category => {
+                            const categoryValues = activeProject.categoryValues?.[category.id] || {};
+                            category.variableDefinitions.forEach(varDef => {
+                              const value = categoryValues[varDef.id] || varDef.defaultValue;
+                              if (value) {
+                                projectVariables[varDef.name] = value;
+                              }
+                            });
+                          });
+                        }
+                      }
+                      return projectVariables;
+                    })(),
+                    customVariables: variableCategories.flatMap(cat => cat.variables),
+                  }), savedExtensions)}
+                </div>
+              </Card>
+            </div>
+          )}
+        </Space>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <RobotOutlined />
+            <span>Generate with AI</span>
+          </Space>
+        }
+        open={showAIModal}
+        onOk={handleAIGenerate}
+        onCancel={() => {
+          setShowAIModal(false);
+          setAIDescription('');
+        }}
+        confirmLoading={isAIGenerating}
+        okText="Generate"
+        cancelText="Cancel"
+        width={600}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text>Describe what you want to generate. Be specific about the format and content.</Text>
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+              Description:
+            </Text>
+            <TextArea
+              value={aiDescription}
+              onChange={(e) => setAIDescription(e.target.value)}
+              placeholder="e.g., 'Email signature with my name and job title' or 'Git commit message for bug fixes' or 'SQL query to find users by email'"
+              autoSize={{ minRows: 4, maxRows: 8 }}
+              autoFocus
+            />
+          </div>
+          {activeProject && (
+            <div style={{ 
+              padding: '12px', 
+              background: 'var(--color-surface-secondary)', 
+              borderRadius: '6px',
+              fontSize: '12px'
+            }}>
+              <Text type="secondary">
+                <strong>Tip:</strong> The AI knows about your active project ({activeProject.name}) 
+                and available variables. It will use them automatically where appropriate.
+              </Text>
+            </div>
+          )}
+        </Space>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <ImportOutlined />
+            <span>Import Replacements</span>
+          </Space>
+        }
+        open={showImportModal}
+        onOk={handleImport}
+        onCancel={() => {
+          setShowImportModal(false);
+          setSelectedFile(null);
+          setBrowsedFilePath(null);
+          setImportedReplacements([]);
+          setSelectedImports([]);
+        }}
+        confirmLoading={isImporting}
+        okText="Import Selected"
+        cancelText="Cancel"
+        width={700}
+        okButtonProps={{ disabled: selectedImports.length === 0 }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+              Select a file to import from:
+            </Text>
+            <Space.Compact style={{ width: '100%' }}>
+              <Select
+                style={{ flex: 1 }}
+                placeholder="Choose a YAML file from Espanso..."
+                value={browsedFilePath ? null : selectedFile}
+                onChange={handleSelectImportFile}
+                options={availableFiles.map(f => ({ 
+                  label: (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{f}</span>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        danger
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteFile(f);
+                        }}
+                        style={{ marginLeft: '8px' }}
+                      />
+                    </div>
+                  ), 
+                  value: f,
+                  disabled: f === category?.fileName
+                }))}
+                notFoundContent={availableFiles.length === 0 ? "No other YAML files found" : null}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    {availableFiles.length > 0 && (
+                      <div style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          Click the trash icon to delete unwanted files
+                        </Text>
+                      </div>
+                    )}
+                  </>
+                )}
+              />
+              <Button
+                icon={<FolderOpenOutlined />}
+                onClick={handleBrowseFile}
+                title="Browse for YAML file"
+              >
+                Browse
+              </Button>
+            </Space.Compact>
+            {browsedFilePath && (
+              <div style={{ marginTop: '8px' }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Browsed file: <Text code>{browsedFilePath}</Text>
+                </Text>
+              </div>
+            )}
+          </div>
+
+          {(selectedFile || browsedFilePath) && importedReplacements.length > 0 && (
+            <div>
+              <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text strong>
+                  Found {importedReplacements.length} replacements:
+                </Text>
+                <Space>
+                  <Button 
+                    size="small" 
+                    onClick={() => setSelectedImports(importedReplacements.map(r => r.trigger))}
+                  >
+                    Select All
+                  </Button>
+                  <Button 
+                    size="small" 
+                    onClick={() => {
+                      const existingTriggers = new Set(replacements.map(r => r.trigger));
+                      const nonDuplicates = importedReplacements
+                        .filter(r => !existingTriggers.has(r.trigger))
+                        .map(r => r.trigger);
+                      setSelectedImports(nonDuplicates);
+                    }}
+                  >
+                    Select Non-Duplicates
+                  </Button>
+                  <Button 
+                    size="small" 
+                    onClick={() => setSelectedImports([])}
+                  >
+                    Clear
+                  </Button>
+                </Space>
+              </div>
+              
+              <div style={{ 
+                maxHeight: '300px', 
+                overflow: 'auto',
+                border: '1px solid #f0f0f0',
+                borderRadius: '6px',
+                padding: '8px'
+              }}>
+                <List
+                  size="small"
+                  dataSource={importedReplacements}
+                  renderItem={(item) => {
+                    const isDuplicate = replacements.some(r => r.trigger === item.trigger);
+                    return (
+                      <List.Item
+                        style={{ 
+                          padding: '8px',
+                          opacity: isDuplicate ? 0.6 : 1,
+                        }}
+                      >
+                        <Checkbox
+                          checked={selectedImports.includes(item.trigger)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedImports([...selectedImports, item.trigger]);
+                            } else {
+                              setSelectedImports(selectedImports.filter(t => t !== item.trigger));
+                            }
+                          }}
+                          disabled={isDuplicate}
+                          style={{ marginRight: '8px' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div>
+                            <Text code style={{ marginRight: '8px' }}>{item.trigger}</Text>
+                            {isDuplicate && (
+                              <Tag color="warning" style={{ fontSize: '11px' }}>Duplicate</Tag>
+                            )}
+                          </div>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {item.replace.length > 100 
+                              ? item.replace.substring(0, 100) + '...' 
+                              : item.replace}
+                          </Text>
+                        </div>
+                      </List.Item>
+                    );
+                  }}
+                />
+              </div>
+              
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {selectedImports.length} of {importedReplacements.length} selected
+                {replacements.filter(r => importedReplacements.some(ir => ir.trigger === r.trigger)).length > 0 && 
+                  ` (${replacements.filter(r => importedReplacements.some(ir => ir.trigger === r.trigger)).length} duplicates will be skipped)`
+                }
+              </Text>
+            </div>
+          )}
+
+          {(selectedFile || browsedFilePath) && importedReplacements.length === 0 && (
+            <Empty description="No replacements found in this file" />
+          )}
+        </Space>
+      </Modal>
+    </div>
   );
 };

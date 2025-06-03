@@ -1,0 +1,240 @@
+matches:
+- trigger: /tar
+  replace: |
+    cd /Volumes/4TB/Users/josephmcmyne/myProjects && \
+    COUNTER=1; \
+    while [ -f management.tar.gz ]; do \
+      COUNTER=$((COUNTER+1)); \
+      if [ ! -f management$COUNTER.tar.gz ]; then \
+        tar -czvf management$COUNTER.tar.gz --exclude="*/node_modules" --exclude="node_modules" --exclude="*/.git" --exclude=".git" management/; \
+        break; \
+      fi; \
+    done; \
+    if [ ! -f management.tar.gz ]; then \
+      tar -czvf management.tar.gz --exclude="*/node_modules" --exclude="node_modules" --exclude="*/.git" --exclude=".git" management/; \
+    fi
+- trigger: '#end'
+  replace: |
+    Update memory please using precise edits with edit_file and only according to your instructions ensuring we're only adding valuable context.
+    The folder is here /memory-bank
+
+    ## Memory Bank Structure
+
+    The Memory Bank consists of core files and optional context files, all in Markdown format. Files build upon each other in a clear hierarchy:
+
+    flowchart TD
+        PB[projectbrief.md] --> PC[productContext.md]
+        PB --> SP[systemPatterns.md]
+        PB --> TC[techContext.md]
+
+        PC --> AC[activeContext.md]
+        SP --> AC
+        TC --> AC
+
+        AC --> P[progress.md]
+
+    ### Core Files (Required)
+    1. `projectbrief.md`
+       - Foundation document that shapes all other files
+       - Created at project start if it doesn't exist
+       - Defines core requirements and goals
+       - Source of truth for project scope
+
+    2. `productContext.md`
+       - Why this project exists
+       - Problems it solves
+       - How it should work
+       - User experience goals
+
+    3. `activeContext.md`
+       - Current work focus
+       - Recent changes
+       - Next steps
+       - Active decisions and considerations
+       - Important patterns and preferences
+       - Learnings and project insights
+
+    4. `systemPatterns.md`
+       - System architecture
+       - Key technical decisions
+       - Design patterns in use
+       - Component relationships
+       - Critical implementation paths
+
+    5. `techContext.md`
+       - Technologies used
+       - Development setup
+       - Technical constraints
+       - Dependencies
+       - Tool usage patterns
+
+    6. `progress.md`
+       - What works
+       - What's left to build
+       - Current status
+       - Known issues
+       - Evolution of project decisions
+
+    ### Additional Context
+    Create additional files/folders within memory-bank/ when they help organize:
+    - Complex feature documentation
+    - Integration specifications
+    - API documentation
+    - Testing strategies
+    - Deployment procedures
+
+    ## Core Workflows
+
+    ### Plan Mode
+    flowchart TD
+        Start[Start] --> ReadFiles[Read Memory Bank]
+        ReadFiles --> CheckFiles{Files Complete?}
+
+        CheckFiles -->|No| Plan[Create Plan]
+        Plan --> Document[Document in Chat]
+
+        CheckFiles -->|Yes| Verify[Verify Context]
+        Verify --> Strategy[Develop Strategy]
+        Strategy --> Present[Present Approach]
+
+    ### Act Mode
+    flowchart TD
+        Start[Start] --> Context[Check Memory Bank]
+        Context --> Update[Update Documentation]
+        Update --> Execute[Execute Task]
+        Execute --> Document[Document Changes]
+
+    ## Documentation Updates
+
+    Memory Bank updates occur when:
+    1. Discovering new project patterns
+    2. After implementing significant changes
+    3. When user requests with **update memory bank** (MUST review ALL files)
+    4. When context needs clarification
+
+    flowchart TD
+        Start[Update Process]
+
+        subgraph Process
+            P1[Review ALL Files]
+            P2[Document Current State]
+            P3[Clarify Next Steps]
+            P4[Document Insights & Patterns]
+
+            P1 --> P2 --> P3 --> P4
+        end
+
+        Start --> Process
+- trigger: /over
+  replace: "OVERSEER – CUSTOM INSTRUCTIONS\n\nPERSONA  \nYou are **the Project Overseer**, a senior full-stack code auditor and architect with deep expertise in Vue 3, Node/Express, PostgreSQL, Docker, and automated code-modification tooling.\n\nTASK  \nEvaluate the supplied project archive, identify implementation gaps or violations of project conventions, and output **concise, self-contained instructions** that direct another LLM (the *Implementer*) to apply fixes **using the available tools** (see list below).  \n• Do **not** ask the human user to perform actions.  \n• Every recommendation must be expressed as an imperative step that the Implementer can execute directly.\n\nCONTEXT  \nProject snapshot arrives as a .tar.gz.  \n1. **Memory-bank files** ( /memory-bank/projectbrief.md, productContext.md, activeContext.md, systemPatterns.md, techContext.md, progress.md, database-routes-map.md ) provide authoritative background; read them **first**.  \n2. **Tech stack & conventions**  \n   – Frontend (Vue 3) → camelCase identifiers  \n   – Backend (Node/Express/Sequelize) → snake_case DB & API boundary  \n   – UUID validation middleware on all routes  \n   – Standard error wrapper { success, data?, message? }  \n   – Use addressService helpers for all address logic  \n3. **Docker environment**; code base root is /Volumes/4TB/Users/josephmcmyne/myProjects/management/.\n\nAVAILABLE TOOLS  \nblock_command • clear_thoughts • create_directory • edit_block • execute_command • force_terminate • get_file_info • get_thought_stats • get_thoughts • get-library-docs • kill_process • list_allowed_directories • list_blocked_commands • list_directory • list_processes • list_sessions • move_file • query • read_file • read_multiple_files • read_output • read_terminal_output • resolve-library-id • search_code • search_files • send_control_character • think • unblock_command • write_file • write_to_terminal\n\nFORMAT  \nReturn your findings in **exactly this structure**:\n\n1. **Issue Summary** – one sentence describing the core problem.  \n2. **Rationale** – up to three bullet points citing files or conventions that justify the fix.  \n3. **Implementation Steps** – numbered list; each step:  \n   - *Tool:* <tool_name>  \n   - *Command / Args:* what the Implementer should run (paths, line numbers, code snippets to add/remove).  \n   - *Purpose:* very short reason.  \n4. **Post-Fix Validation** – commands or checks the Implementer must run to confirm success.  \n\nAdditional rules:  \n• Keep total output ≤ 250 tokens.  \n• Use imperative voice (\"Run directory_tree, then edit…\").  \n• If no issues are found, output NO ACTION REQUIRED in section 1 and omit sections 2–4.  \n\nTASK BELOW:\nExtract and evaluate project.\n"
+- trigger: /ask
+  replace: Please provide a prompt to examine our implementation. i have another llm ready as the overseer of our code to examine our implementation and ensure we’ve done it correctly. It has access to a tar.gz file which is the project’s root folder zipped. We will need to provide it instructions to extract the file and then state the files we’ve recently edited, or a pertinent to the issue and what they do to provide scrutiny.
+- trigger: /start
+  replace: |
+    To get started I’d like you to read multiple files below please.
+
+    These are important files that explain the purpose of the project and how to use it.
+
+    // The files are located in the memory-bank directory.
+
+    memory-bank/activeContext.md,
+
+    memory-bank/productContext.md,
+
+    memory-bank/progress.md,
+
+    memory-bank/projectbrief.md,
+
+    memory-bank/systemPatterns.md,
+
+    memory-bank/techContext.md,
+
+    memory-bank/database-routes-map.md,
+
+    memory-bank/.clinerules
+
+    After reading the files you can work on a solution to the problem below.
+- trigger: test
+  replace: Test
+- trigger: /tmcp
+  replace: |-
+    cd /Volumes/4TB/Users/josephmcmyne/myProjects && \
+      COUNTER=1; \
+      while [ -f mcp-manager.tar.gz ]; do \
+        COUNTER=$((COUNTER+1)); \
+        if [ ! -f mcp-manager$COUNTER.tar.gz ]; then \
+          tar -czvf mcp-manager$COUNTER.tar.gz \
+            --exclude="*/node_modules" \
+            --exclude="node_modules" \
+            --exclude="*/.git" \
+            --exclude=".git" \
+            --exclude="*/target" \
+            --exclude="target" \
+            --exclude="*/dist" \
+            --exclude="dist" \
+            --exclude="*.app" \
+            --exclude="*/src-tauri/target" \
+            --exclude="src-tauri/target" \
+            --exclude="*/.DS_Store" \
+            --exclude=".DS_Store" \
+            --exclude="*/Cargo.lock" \
+            --exclude="*/*.log" \
+            --exclude="*.log" \
+            --exclude="*/package-lock.json" \
+            mcp-manager/; \
+          break; \
+        fi; \
+      done; \
+      if [ ! -f mcp-manager.tar.gz ]; then \
+        tar -czvf mcp-manager.tar.gz \
+          --exclude="*/node_modules" \
+          --exclude="node_modules" \
+          --exclude="*/.git" \
+          --exclude=".git" \
+          --exclude="*/target" \
+          --exclude="target" \
+          --exclude="*/dist" \
+          --exclude="dist" \
+          --exclude="*.app" \
+          --exclude="*/src-tauri/target" \
+          --exclude="src-tauri/target" \
+          --exclude="*/.DS_Store" \
+          --exclude=".DS_Store" \
+          --exclude="*/Cargo.lock" \
+          --exclude="*/*.log" \
+          --exclude="*.log" \
+          --exclude="*/package-lock.json" \
+          mcp-manager/; \
+      fi
+- trigger: /tbrm
+  replace: |-
+    cd /Volumes/4TB/Users/josephmcmyne/myProjects && \
+    COUNTER=1; \
+    while [ -f BRM.tar.gz ]; do \
+      COUNTER=$((COUNTER+1)); \
+      if [ ! -f BRM$COUNTER.tar.gz ]; then \
+        tar -czvf BRM$COUNTER.tar.gz \
+          --exclude="*/node_modules" --exclude="node_modules" \
+          --exclude="*/.git"         --exclude=".git" \
+          --exclude="*/target"       --exclude="target" \        # Rust / Tauri build output
+          --exclude="*/dist"         --exclude="dist" \          # Vite / Webpack etc.
+          --exclude="*/build"        --exclude="build" \         # CRA, Tauri frontend prod builds
+          --exclude="*/.next"        --exclude=".next" \         # Next.js
+          --exclude="*/.turbo"       --exclude=".turbo" \        # Turborepo cache
+          --exclude="*.log"          --exclude="*.DS_Store" \    # logs & macOS cruft
+          BRM/; \
+        break; \
+      fi; \
+    done; \
+    if [ ! -f BRM.tar.gz ]; then \
+      tar -czvf BRM.tar.gz \
+        --exclude="*/node_modules" --exclude="node_modules" \
+        --exclude="*/.git"         --exclude=".git" \
+        --exclude="*/target"       --exclude="target" \
+        --exclude="*/dist"         --exclude="dist" \
+        --exclude="*/build"        --exclude="build" \
+        --exclude="*/.next"        --exclude=".next" \
+        --exclude="*/.turbo"       --exclude=".turbo" \
+        --exclude="*.log"          --exclude="*.DS_Store" \
+        BRM/; \
+    fi

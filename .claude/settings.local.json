@@ -28,7 +28,20 @@
       "Bash(npm uninstall:*)",
       "Bash(rg:*)",
       "Bash(mv:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm run migrate:*)",
+      "WebFetch(domain:reactjs.org)",
+      "WebFetch(domain:react.dev)",
+      "Bash(npm ls:*)",
+      "Bash(cargo --version)",
+      "Bash(node:*)",
+      "Bash(npm --version)",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__read_file",
+      "mcp__filesystem__edit_file",
+      "mcp__filesystem__list_allowed_directories",
+      "mcp__filesystem__search_files"
     ],
     "deny": []
   }

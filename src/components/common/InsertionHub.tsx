@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  Layout, 
   Input, 
   Menu,
   Typography, 
@@ -9,6 +8,7 @@ import {
   theme,
   Empty,
   Divider,
+  Alert,
 } from 'antd';
 import { 
   SearchOutlined,
@@ -24,6 +24,7 @@ import {
 import { useProjects } from '../../contexts/ProjectContext';
 import { useVariables } from '../../contexts/VariablesContext';
 import { useSavedExtensions } from '../../contexts/SavedExtensionsContext';
+import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
 import { VariableCard } from './VariableCard';
 import { ExtensionBuilder } from '../extensions';
 import { SavedExtensionsManager } from '../extensions';
@@ -33,13 +34,13 @@ import {
 } from '../../types/insertionHub';
 import { ExtensionType } from '../../types/extensions';
 
-const { Sider } = Layout;
 const { Search } = Input;
 const { Text } = Typography;
 
 interface InsertionHubProps {
   onInsert: (value: string) => void;
 }
+
 
 export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -53,6 +54,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
   const { activeProject } = useProjects();
   const { categories: customVarCategories } = useVariables();
   const { savedExtensions } = useSavedExtensions();
+  const { categories: projectCategories } = useProjectCategories();
   
   const {
     token: { colorBgContainer, colorBorder },
@@ -126,7 +128,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
         value: '{{date}}',
         category: 'datetime',
         icon: 'CalendarOutlined',
-        preview: () => new Date().toLocaleDateString(),
+        preview: () => 'Current date',
         quickSettings: true,
       },
       {
@@ -135,7 +137,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
         value: '{{time}}',
         category: 'datetime',
         icon: 'ClockCircleOutlined',
-        preview: () => new Date().toLocaleTimeString(),
+        preview: () => 'Current time',
         quickSettings: true,
       },
       {
@@ -144,7 +146,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
         value: '{{datetime}}',
         category: 'datetime',
         icon: 'CalendarOutlined',
-        preview: () => new Date().toLocaleString(),
+        preview: () => 'Current date and time',
         quickSettings: true,
       },
       {
@@ -153,51 +155,30 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
         value: '{{date:format=%s}}',
         category: 'datetime',
         icon: 'ClockCircleOutlined',
-        preview: () => Date.now().toString(),
+        preview: () => 'Unix timestamp',
       },
     );
 
     // Project-aware variables (in system category)
-    if (activeProject) {
-      items.push(
-        {
-          key: 'project-name',
-          label: 'Project Name',
-          value: '{{active_project_name}}',
-          category: 'system',
-          icon: 'ProjectOutlined',
-          preview: () => activeProject.name,
-        },
-        {
-          key: 'project-stack',
-          label: 'Project Stack',
-          value: '{{active_project_stack}}',
-          category: 'system',
-          icon: 'CodeOutlined',
-          preview: () => activeProject.stack || 'No stack defined',
-        },
-        {
-          key: 'project-dir',
-          label: 'Project Directory',
-          value: '{{active_project_directory}}',
-          category: 'system',
-          icon: 'FolderOutlined',
-          preview: () => activeProject.directory || 'No directory defined',
-        }
-      );
-
-      // Add custom project variables
-      if (activeProject.customVariables) {
-        Object.entries(activeProject.customVariables).forEach(([key, value]) => {
-          items.push({
-            key: `project-custom-${key}`,
-            label: key,
-            value: `{{${key}}}`,
-            category: 'system',
-            icon: 'TagOutlined',
-            preview: () => value,
-          });
+    if (activeProject && activeProject.categoryId && activeProject.categoryValues && projectCategories) {
+      // Only include variables from the project's category
+      const projectCategory = projectCategories.find(cat => cat.id === activeProject.categoryId);
+      if (projectCategory) {
+        const categoryValues = activeProject.categoryValues?.[projectCategory.id] || {};
+        projectCategory.variableDefinitions.forEach(varDef => {
+          const value = categoryValues[varDef.id] || varDef.defaultValue;
+          if (value) {
+            items.push({
+              key: `project-cat-${projectCategory.id}-${varDef.id}`,
+              label: varDef.description || varDef.name,
+              value: `{{${varDef.name}}}`,
+              category: 'system',
+              icon: 'ProjectOutlined',
+              preview: () => value || 'Not set',
+            });
+          }
         });
+        
       }
     }
 
@@ -361,125 +342,136 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
 
   return (
     <>
-      <Sider 
-        collapsed={collapsed} 
-        onCollapse={setCollapsed}
-        collapsible
-        trigger={null}
-        width={320}
+      <div 
         style={{ 
+          width: collapsed ? 60 : 320,
           background: colorBgContainer,
           borderLeft: `1px solid ${colorBorder}`,
           overflow: 'hidden',
+          transition: 'width 0.2s ease',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {/* Header */}
-          <div style={{ 
-            padding: collapsed ? '16px 8px' : '16px', 
-            borderBottom: `1px solid ${colorBorder}`,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {!collapsed && (
-                <>
-                  <Text strong style={{ fontSize: 16 }}>Insertion Hub</Text>
-                  <Space>
-                    <Button 
-                      type="text"
-                      size="small"
-                      icon={<PlusOutlined />}
-                      onClick={() => setShowBuilder(true)}
-                    />
-                    <Button 
-                      type="text"
-                      size="small"
-                      icon={<SettingOutlined />}
-                      onClick={() => setShowExtensionsManager(true)}
-                    />
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<MenuFoldOutlined />}
-                      onClick={() => setCollapsed(true)}
-                    />
-                  </Space>
-                </>
-              )}
-              {collapsed && (
-                <Button
-                  type="text"
-                  icon={<MenuUnfoldOutlined />}
-                  onClick={() => setCollapsed(false)}
-                  style={{ margin: '0 auto' }}
-                />
-              )}
-            </div>
-          </div>
-
-          {!collapsed && (
-            <>
-              {/* Category Menu */}
-              <Menu
-                mode="inline"
-                selectedKeys={[selectedCategory]}
-                onClick={(e) => setSelectedCategory(e.key)}
-                items={menuItems}
-                style={{ borderRight: 0, borderBottom: `1px solid ${colorBorder}` }}
-              />
-
-              {/* Search */}
-              <div style={{ padding: '12px 16px' }}>
-                <Search
-                  placeholder="Search variables..."
-                  prefix={<SearchOutlined />}
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  allowClear
-                  size="small"
-                />
-              </div>
-
-              <Divider style={{ margin: '0 16px', minWidth: 'auto', width: 'auto' }} />
-
-              {/* Variable List */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '8px 16px 16px' }}>
-                {filteredItems.length === 0 ? (
-                  <Empty 
-                    description={
-                      selectedCategory === 'favorites' 
-                        ? "No favorites yet. Star items to add them here."
-                        : "No items found"
-                    }
-                    style={{ marginTop: 48 }}
+        {/* Header */}
+        <div style={{ 
+          padding: collapsed ? '16px 8px' : '16px', 
+          borderBottom: `1px solid ${colorBorder}`,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {!collapsed && (
+              <>
+                <Text strong style={{ fontSize: 16 }}>Insertion Hub</Text>
+                <Space>
+                  <Button 
+                    type="text"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => setShowBuilder(true)}
                   />
-                ) : (
-                  filteredItems.map(item => (
-                    <VariableCard
-                      key={item.key}
-                      item={item}
-                      onInsert={onInsert}
-                      onOpenBuilder={handleOpenBuilder}
-                      onToggleFavorite={toggleFavorite}
-                    />
-                  ))
-                )}
-              </div>
-            </>
-          )}
-
-          {collapsed && (
-            <div style={{ 
-              flex: 1, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              writingMode: 'vertical-rl',
-            }}>
-              <Text type="secondary">Insertion Hub</Text>
-            </div>
-          )}
+                  <Button 
+                    type="text"
+                    size="small"
+                    icon={<SettingOutlined />}
+                    onClick={() => setShowExtensionsManager(true)}
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<MenuFoldOutlined />}
+                    onClick={() => setCollapsed(true)}
+                  />
+                </Space>
+              </>
+            )}
+            {collapsed && (
+              <Button
+                type="text"
+                icon={<MenuUnfoldOutlined />}
+                onClick={() => setCollapsed(false)}
+                style={{ margin: '0 auto' }}
+              />
+            )}
+          </div>
         </div>
-      </Sider>
+
+        {!collapsed && (
+          <>
+            {/* Category Menu */}
+            <Menu
+              mode="inline"
+              selectedKeys={[selectedCategory]}
+              onClick={(e) => setSelectedCategory(e.key)}
+              items={menuItems}
+              style={{ borderRight: 0, borderBottom: `1px solid ${colorBorder}`, flexShrink: 0 }}
+            />
+
+            {/* Search */}
+            <div style={{ padding: '12px 16px', flexShrink: 0 }}>
+              <Search
+                placeholder="Search variables..."
+                prefix={<SearchOutlined />}
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                allowClear
+                size="small"
+              />
+            </div>
+
+            <Divider style={{ margin: '0 16px', minWidth: 'auto', width: 'auto', flexShrink: 0 }} />
+
+            {/* No Active Project Alert */}
+            {!activeProject && selectedCategory === 'system' && (
+              <Alert
+                message="No Active Project"
+                description="Select a project to enable project variables"
+                type="info"
+                showIcon
+                closable
+                style={{ margin: '0 16px 8px', flexShrink: 0 }}
+              />
+            )}
+
+            {/* Variable List */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '8px 16px 16px', minHeight: 0 }}>
+              {filteredItems.length === 0 ? (
+                <Empty 
+                  description={
+                    selectedCategory === 'favorites' 
+                      ? "No favorites yet. Star items to add them here."
+                      : "No items found"
+                  }
+                  style={{ marginTop: 48 }}
+                />
+              ) : (
+                filteredItems.map(item => (
+                  <VariableCard
+                    key={item.key}
+                    item={item}
+                    onInsert={onInsert}
+                    onOpenBuilder={handleOpenBuilder}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {collapsed && (
+          <div style={{ 
+            flex: 1, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            writingMode: 'vertical-rl',
+          }}>
+            <Text type="secondary">Insertion Hub</Text>
+          </div>
+        )}
+      </div>
 
       {/* Extension Builder Modal */}
       <ExtensionBuilder

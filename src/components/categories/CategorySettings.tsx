@@ -272,7 +272,14 @@ export const CategorySettings: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div 
+      style={{ 
+        height: '100%', 
+        overflow: 'auto',
+        padding: '24px',
+      }}
+      className="custom-scrollbar"
+    >
       <Card>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={4} style={{ margin: 0 }}>Replacement Categories</Title>

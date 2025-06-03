@@ -9,7 +9,14 @@ import {
 
 const Dashboard: React.FC = () => {
   return (
-    <div>
+    <div 
+      style={{ 
+        height: '100%', 
+        overflow: 'auto',
+        padding: '24px',
+      }}
+      className="custom-scrollbar"
+    >
       <h1>Dashboard</h1>
       <p>Welcome to BetterReplacementsManager - your text replacement and AI template management hub.</p>
       

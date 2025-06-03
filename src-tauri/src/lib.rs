@@ -4,6 +4,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use log::{error, info};
 
+mod yaml_utils;
+use yaml_utils::{escape_yaml_value, atomic_write};
+
+mod llm_api;
+mod secure_storage;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct EspansoMatch {
     trigger: String,
@@ -22,25 +28,23 @@ struct Replacement {
     source: String,
 }
 
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Project {
     id: String,
     name: String,
-    description: String,
-    stack: String,
-    directory: String,
-    #[serde(rename = "restartCommand")]
-    restart_command: String,
-    #[serde(rename = "logCommand")]
-    log_command: String,
+    description: Option<String>,
+    #[serde(rename = "categoryId")]
+    category_id: String,
     #[serde(rename = "isActive")]
     is_active: bool,
     #[serde(rename = "createdAt")]
     created_at: String,
     #[serde(rename = "updatedAt")]
     updated_at: String,
-    #[serde(rename = "customVariables")]
-    custom_variables: Option<std::collections::HashMap<String, String>>,
+    // Category-based variable system - all project data stored here
+    #[serde(rename = "categoryValues")]
+    category_values: Option<std::collections::HashMap<String, std::collections::HashMap<String, String>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -130,6 +134,39 @@ struct SavedExtensionSettings {
     auto_save_on_create: bool,
     #[serde(rename = "showUsageStats")]
     show_usage_stats: bool,
+}
+
+// Project Categories structures
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct ProjectCategoryVariable {
+    id: String,
+    name: String,
+    description: Option<String>,
+    #[serde(rename = "defaultValue")]
+    default_value: Option<String>,
+    required: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct ProjectCategory {
+    id: String,
+    name: String,
+    description: Option<String>,
+    icon: Option<String>,
+    color: Option<String>,
+    #[serde(rename = "isDefault")]
+    is_default: Option<bool>,
+    #[serde(rename = "fileName")]
+    file_name: Option<String>,
+    #[serde(rename = "variableDefinitions")]
+    variable_definitions: Vec<ProjectCategoryVariable>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProjectCategoriesData {
+    categories: Vec<ProjectCategory>,
+    #[serde(rename = "lastUpdated")]
+    last_updated: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -279,29 +316,31 @@ fn update_project(id: String, updates: Value) -> Result<(), String> {
             if let Some(name) = obj.get("name").and_then(|v| v.as_str()) {
                 project.name = name.to_string();
             }
-            if let Some(desc) = obj.get("description").and_then(|v| v.as_str()) {
-                project.description = desc.to_string();
+            if let Some(description) = obj.get("description") {
+                if description.is_null() {
+                    project.description = None;
+                } else if let Some(desc_str) = description.as_str() {
+                    project.description = Some(desc_str.to_string());
+                }
             }
-            if let Some(stack) = obj.get("stack").and_then(|v| v.as_str()) {
-                project.stack = stack.to_string();
+            if let Some(cat_id) = obj.get("categoryId").and_then(|v| v.as_str()) {
+                project.category_id = cat_id.to_string();
             }
-            if let Some(dir) = obj.get("directory").and_then(|v| v.as_str()) {
-                project.directory = dir.to_string();
-            }
-            if let Some(cmd) = obj.get("restartCommand").and_then(|v| v.as_str()) {
-                project.restart_command = cmd.to_string();
-            }
-            if let Some(cmd) = obj.get("logCommand").and_then(|v| v.as_str()) {
-                project.log_command = cmd.to_string();
-            }
-            if let Some(custom_vars) = obj.get("customVariables").and_then(|v| v.as_object()) {
-                let mut vars_map = std::collections::HashMap::new();
-                for (key, value) in custom_vars {
-                    if let Some(val_str) = value.as_str() {
-                        vars_map.insert(key.clone(), val_str.to_string());
+            // Handle category values
+            if let Some(cat_vals) = obj.get("categoryValues").and_then(|v| v.as_object()) {
+                let mut cat_vals_map = std::collections::HashMap::new();
+                for (cat_id, cat_data) in cat_vals {
+                    if let Some(cat_obj) = cat_data.as_object() {
+                        let mut var_vals_map = std::collections::HashMap::new();
+                        for (var_id, value) in cat_obj {
+                            if let Some(val_str) = value.as_str() {
+                                var_vals_map.insert(var_id.clone(), val_str.to_string());
+                            }
+                        }
+                        cat_vals_map.insert(cat_id.clone(), var_vals_map);
                     }
                 }
-                project.custom_variables = Some(vars_map);
+                project.category_values = Some(cat_vals_map);
             }
             // Update timestamp
             project.updated_at = chrono::Utc::now().to_rfc3339();
@@ -361,46 +400,42 @@ fn update_espanso_project_vars(project: &Project) -> Result<(), String> {
         .join("project_active_vars.yml");
     
     let mut yaml_content = format!(r#"# Generated active project variables for: {}
-global_vars:
-  - name: active_project_name
-    type: echo
-    params:
-      echo: "{}"
-  
-  - name: active_project_stack
-    type: echo
-    params:
-      echo: "{}"
-  
-  - name: active_project_directory
-    type: echo
-    params:
-      echo: "{}"
-  
-  - name: active_project_restart_cmd
-    type: echo
-    params:
-      echo: "{}"
-  
-  - name: active_project_log_cmd
-    type: echo
-    params:
-      echo: "{}"
-"#, project.name, project.name, project.stack, project.directory, project.restart_command, project.log_command);
+global_vars:"#, escape_yaml_value(&project.name));
     
-    // Add custom variables if they exist
-    if let Some(custom_vars) = &project.custom_variables {
-        for (key, value) in custom_vars {
-            yaml_content.push_str(&format!(r#"  
+    // Process category variables
+    if let Some(category_values) = &project.category_values {
+        // Load project categories to get variable definitions
+        if let Ok(categories_data) = load_project_categories_data() {
+            for (category_id, variable_values) in category_values {
+                // Find the category definition
+                if let Some(category) = categories_data.categories.iter()
+                    .find(|c| c.id == *category_id) {
+                    
+                    // Process each variable in this category
+                    for variable_def in &category.variable_definitions {
+                        if let Some(value) = variable_values.get(&variable_def.id) {
+                            // Only include variables that have values set
+                            if !value.trim().is_empty() {
+                                yaml_content.push_str(&format!(r#"
   - name: {}
     type: echo
     params:
-      echo: "{}"
-"#, key, value));
+      echo: {}"#, 
+                                    variable_def.name, 
+                                    escape_yaml_value(value)
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
-    fs::write(&espanso_path, yaml_content)
+    yaml_content.push_str("\n");
+    
+    // Use atomic write for safety
+    atomic_write(&espanso_path, &yaml_content)
         .map_err(|e| format!("Failed to write Espanso project vars: {}", e))?;
     
     // Also update the project selector
@@ -421,8 +456,8 @@ fn update_project_selector() -> Result<(), String> {
     // Build the choices for the selector
     let mut choices = vec![];
     for project in &data.projects {
-        choices.push(format!(r#"          - label: "{}"
-            id: "{}""#, project.name, project.id));
+        choices.push(format!(r#"          - label: {}
+            id: "{}""#, escape_yaml_value(&project.name), project.id));
     }
     
     let yaml_content = format!(r#"# Generated project selector for quick switching
@@ -437,7 +472,7 @@ matches:
 {}
 "#, choices.join("\n"));
     
-    fs::write(&selector_path, yaml_content)
+    atomic_write(&selector_path, &yaml_content)
         .map_err(|e| format!("Failed to write project selector: {}", e))?;
     
     Ok(())
@@ -446,6 +481,25 @@ matches:
 #[tauri::command]
 fn handle_project_selection(project_id: String) -> Result<(), String> {
     set_active_project(Some(project_id))
+}
+
+#[tauri::command]
+fn clear_project_espanso_config() -> Result<(), String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let espanso_path = home_dir.join("Library")
+        .join("Application Support")
+        .join("espanso")
+        .join("match")
+        .join("project_active_vars.yml");
+    
+    // Write an empty config file with a comment
+    let empty_content = "# No active project - project variables will not be available\nglobal_vars: []\n";
+    
+    atomic_write(&espanso_path, empty_content)
+        .map_err(|e| format!("Failed to clear project config: {}", e))?;
+    
+    info!("Cleared project Espanso config");
+    Ok(())
 }
 
 #[tauri::command]
@@ -620,6 +674,217 @@ fn delete_category(id: String) -> Result<(), String> {
     
     data.categories.retain(|c| c.id != id);
     save_categories_data(&data)
+}
+
+// Project Categories management functions
+fn get_project_categories_file_path() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home_dir.join("Library")
+        .join("Application Support")
+        .join("BetterReplacementsManager")
+        .join("project_categories.json"))
+}
+
+fn load_project_categories_data() -> Result<ProjectCategoriesData, String> {
+    let file_path = get_project_categories_file_path()?;
+    
+    if file_path.exists() {
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read project categories file: {}", e))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse project categories data: {}", e))
+    } else {
+        // Return default categories if file doesn't exist
+        let default_categories = vec![
+            ProjectCategory {
+                id: "general".to_string(),
+                name: "General".to_string(),
+                description: Some("Basic project information".to_string()),
+                icon: Some("InfoCircleOutlined".to_string()),
+                color: Some("#1890ff".to_string()),
+                is_default: Some(true),
+                file_name: Some("project_general.yml".to_string()),
+                variable_definitions: vec![
+                    ProjectCategoryVariable {
+                        id: "project_name".to_string(),
+                        name: "project_name".to_string(),
+                        description: Some("The name of your project".to_string()),
+                        default_value: None,
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "active_project_name".to_string(),
+                        name: "active_project_name".to_string(),
+                        description: Some("The name of the active project (legacy compatibility)".to_string()),
+                        default_value: None,
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "project_description".to_string(),
+                        name: "project_description".to_string(),
+                        description: Some("A brief description of the project".to_string()),
+                        default_value: None,
+                        required: Some(false),
+                    },
+                ],
+            },
+            ProjectCategory {
+                id: "development".to_string(),
+                name: "Development".to_string(),
+                description: Some("Development-related variables".to_string()),
+                icon: Some("CodeOutlined".to_string()),
+                color: Some("#52c41a".to_string()),
+                is_default: Some(true),
+                file_name: Some("project_development.yml".to_string()),
+                variable_definitions: vec![
+                    ProjectCategoryVariable {
+                        id: "tech_stack".to_string(),
+                        name: "tech_stack".to_string(),
+                        description: Some("Technology stack used".to_string()),
+                        default_value: Some("TypeScript".to_string()),
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "active_project_stack".to_string(),
+                        name: "active_project_stack".to_string(),
+                        description: Some("Technology stack (legacy compatibility)".to_string()),
+                        default_value: Some("TypeScript".to_string()),
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "directory".to_string(),
+                        name: "directory".to_string(),
+                        description: Some("Project directory path".to_string()),
+                        default_value: None,
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "active_project_directory".to_string(),
+                        name: "active_project_directory".to_string(),
+                        description: Some("Project directory (legacy compatibility)".to_string()),
+                        default_value: None,
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "restart_command".to_string(),
+                        name: "restart_command".to_string(),
+                        description: Some("Command to restart the project".to_string()),
+                        default_value: Some("npm run dev".to_string()),
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "active_project_restart_cmd".to_string(),
+                        name: "active_project_restart_cmd".to_string(),
+                        description: Some("Restart command (legacy compatibility)".to_string()),
+                        default_value: Some("npm run dev".to_string()),
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "log_command".to_string(),
+                        name: "log_command".to_string(),
+                        description: Some("Command to view logs".to_string()),
+                        default_value: Some("npm run logs".to_string()),
+                        required: Some(false),
+                    },
+                    ProjectCategoryVariable {
+                        id: "active_project_log_cmd".to_string(),
+                        name: "active_project_log_cmd".to_string(),
+                        description: Some("Log command (legacy compatibility)".to_string()),
+                        default_value: Some("npm run logs".to_string()),
+                        required: Some(false),
+                    },
+                ],
+            },
+        ];
+        
+        Ok(ProjectCategoriesData {
+            categories: default_categories,
+            last_updated: chrono::Utc::now().to_rfc3339(),
+        })
+    }
+}
+
+fn save_project_categories_data(data: &ProjectCategoriesData) -> Result<(), String> {
+    let file_path = get_project_categories_file_path()?;
+    
+    // Ensure directory exists
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create project categories directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| format!("Failed to serialize project categories data: {}", e))?;
+    
+    fs::write(&file_path, json)
+        .map_err(|e| format!("Failed to write project categories file: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn read_project_categories() -> Result<ProjectCategoriesData, String> {
+    load_project_categories_data()
+}
+
+#[tauri::command]
+fn write_project_categories(data: ProjectCategoriesData) -> Result<(), String> {
+    // Load existing data to compare for new/updated categories
+    let existing_data = load_project_categories_data().unwrap_or_else(|_| ProjectCategoriesData {
+        categories: vec![],
+        last_updated: chrono::Utc::now().to_rfc3339(),
+    });
+    
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let espanso_match_dir = home_dir.join("Library")
+        .join("Application Support")
+        .join("espanso")
+        .join("match");
+    
+    // Ensure Espanso match directory exists
+    fs::create_dir_all(&espanso_match_dir)
+        .map_err(|e| format!("Failed to create Espanso match directory: {}", e))?;
+    
+    // Create/update YAML files for all categories
+    for category in &data.categories {
+        if let Some(file_name) = &category.file_name {
+            let yaml_path = espanso_match_dir.join(file_name);
+            
+            // Check if this is a new category or if it's being updated
+            let existing_category = existing_data.categories.iter().find(|c| c.id == category.id);
+            let should_create_file = existing_category.is_none() || !yaml_path.exists();
+            
+            if should_create_file {
+                // Create initial YAML content with category description
+                let mut yaml_content = format!("# {}\n", category.name);
+                if let Some(desc) = &category.description {
+                    yaml_content.push_str(&format!("# {}\n", desc));
+                }
+                yaml_content.push_str("matches:\n  # Add your replacements here\n");
+                
+                atomic_write(&yaml_path, &yaml_content)
+                    .map_err(|e| format!("Failed to create YAML file for category '{}': {}", category.name, e))?;
+                
+                info!("Created YAML file for category '{}': {:?}", category.name, yaml_path);
+            }
+        }
+    }
+    
+    // Remove YAML files for deleted categories
+    for existing_category in &existing_data.categories {
+        if !data.categories.iter().any(|c| c.id == existing_category.id) {
+            if let Some(file_name) = &existing_category.file_name {
+                let yaml_path = espanso_match_dir.join(file_name);
+                if yaml_path.exists() {
+                    fs::remove_file(&yaml_path)
+                        .map_err(|e| format!("Failed to delete YAML file for category '{}': {}", existing_category.name, e))?;
+                    info!("Deleted YAML file for category '{}': {:?}", existing_category.name, yaml_path);
+                }
+            }
+        }
+    }
+    
+    save_project_categories_data(&data)
 }
 
 // Custom variables management functions
@@ -842,6 +1107,390 @@ fn increment_extension_usage(extension_id: String) -> Result<(), String> {
     }
 }
 
+// AI Prompts management
+#[derive(Debug, Serialize, Deserialize)]
+struct AIPromptsData {
+    prompts: AIPrompts,
+    #[serde(rename = "useCustom")]
+    use_custom: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AIPrompts {
+    #[serde(rename = "generateReplacement")]
+    generate_replacement: GenerateReplacementPrompts,
+    #[serde(rename = "improveReplacement")]
+    improve_replacement: ImproveReplacementPrompts,
+    #[serde(rename = "generateExtension")]
+    generate_extension: GenerateExtensionPrompts,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GenerateReplacementPrompts {
+    system: String,
+    user: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ImproveReplacementPrompts {
+    system: String,
+    #[serde(rename = "userWithInstructions")]
+    user_with_instructions: String,
+    #[serde(rename = "userWithoutInstructions")]
+    user_without_instructions: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GenerateExtensionPrompts {
+    system: String,
+    script: String,
+    shell: String,
+    form: String,
+}
+
+fn get_ai_prompts_file_path() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home_dir.join("Library")
+        .join("Application Support")
+        .join("BetterReplacementsManager")
+        .join("ai_prompts.json"))
+}
+
+fn load_ai_prompts_data() -> Result<AIPromptsData, String> {
+    let file_path = get_ai_prompts_file_path()?;
+    
+    if file_path.exists() {
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read AI prompts file: {}", e))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse AI prompts data: {}", e))
+    } else {
+        // Return default prompts if file doesn't exist
+        Ok(create_default_ai_prompts())
+    }
+}
+
+fn save_ai_prompts_data(data: &AIPromptsData) -> Result<(), String> {
+    let file_path = get_ai_prompts_file_path()?;
+    
+    // Ensure directory exists
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create AI prompts directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| format!("Failed to serialize AI prompts data: {}", e))?;
+    fs::write(&file_path, json)
+        .map_err(|e| format!("Failed to write AI prompts file: {}", e))?;
+    
+    Ok(())
+}
+
+fn create_default_ai_prompts() -> AIPromptsData {
+    AIPromptsData {
+        prompts: AIPrompts {
+            generate_replacement: GenerateReplacementPrompts {
+                system: "You are an expert at creating text replacements for Espanso. \nGenerate a concise, useful text replacement based on the user's description.\nIf the description mentions specific variables or provides context about available variables, use them appropriately with the {{variable_name}} syntax.\nReturn ONLY the replacement text, no explanations or additional formatting.\nMake the replacement practical and ready to use.".to_string(),
+                user: "Create a text replacement for: {description}".to_string(),
+            },
+            improve_replacement: ImproveReplacementPrompts {
+                system: "You are an expert at improving text replacements.\nEnhance the given text while maintaining its core purpose.\nReturn ONLY the improved text, no explanations.".to_string(),
+                user_with_instructions: "Improve this text according to these instructions: \"{instructions}\"\n\nOriginal text: {original}".to_string(),
+                user_without_instructions: "Improve this text to be more professional and polished: {original}".to_string(),
+            },
+            generate_extension: GenerateExtensionPrompts {
+                system: "You are an expert at creating Espanso extensions.\nGenerate the requested extension configuration as valid JSON.\nEnsure the output is properly formatted and follows Espanso's extension schema.".to_string(),
+                script: "Generate a script that: {description}\nReturn a JSON object with: { interpreter: \"python\" or \"node\", script: \"the script code\", args: [] }".to_string(),
+                shell: "Generate a shell command that: {description}\nReturn a JSON object with: { cmd: \"the command\", shell: \"bash\" }".to_string(),
+                form: "Generate a form for: {description}\nReturn a JSON object with: { title: \"form title\", fields: [{ name: \"field_name\", type: \"text\", label: \"Field Label\" }] }".to_string(),
+            },
+        },
+        use_custom: false,
+    }
+}
+
+#[tauri::command]
+fn read_ai_prompts() -> Result<AIPromptsData, String> {
+    load_ai_prompts_data()
+}
+
+#[tauri::command]
+fn write_ai_prompts(prompts: AIPrompts, use_custom: bool) -> Result<(), String> {
+    let data = AIPromptsData {
+        prompts,
+        use_custom,
+    };
+    save_ai_prompts_data(&data)
+}
+
+// LLM Config management
+fn get_llm_configs_file_path() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home_dir.join("Library")
+        .join("Application Support")
+        .join("BetterReplacementsManager")
+        .join("llm_configs.json"))
+}
+
+fn load_llm_configs_data() -> Result<secure_storage::LLMConfigData, String> {
+    let file_path = get_llm_configs_file_path()?;
+    
+    if file_path.exists() {
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read LLM configs file: {}", e))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse LLM configs data: {}", e))
+    } else {
+        // Return default empty data if file doesn't exist
+        Ok(secure_storage::LLMConfigData {
+            configs: vec![],
+            last_updated: chrono::Utc::now().to_rfc3339(),
+        })
+    }
+}
+
+fn save_llm_configs_data(data: &secure_storage::LLMConfigData) -> Result<(), String> {
+    let file_path = get_llm_configs_file_path()?;
+    
+    // Ensure directory exists
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create LLM configs directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| format!("Failed to serialize LLM configs data: {}", e))?;
+    fs::write(&file_path, json)
+        .map_err(|e| format!("Failed to write LLM configs file: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn read_llm_configs() -> Result<secure_storage::LLMConfigData, String> {
+    load_llm_configs_data()
+}
+
+#[tauri::command]
+fn write_llm_configs(data: secure_storage::LLMConfigData) -> Result<(), String> {
+    save_llm_configs_data(&data)
+}
+
+#[tauri::command]
+fn migrate_replacement_categories_to_project_categories() -> Result<(), String> {
+    info!("Starting migration from replacement categories to project categories");
+    
+    // Load existing replacement categories
+    let existing_categories = load_categories_data().unwrap_or_else(|_| CategoriesData {
+        categories: vec![],
+    });
+    
+    // Load existing project categories
+    let mut project_categories_data = load_project_categories_data()?;
+    
+    let mut migrated_count = 0;
+    
+    // Migrate each replacement category that doesn't already exist in project categories
+    for old_category in existing_categories.categories {
+        // Skip default categories (they should already exist in project categories)
+        if old_category.is_default.unwrap_or(false) {
+            continue;
+        }
+        
+        // Check if this category already exists in project categories
+        let exists = project_categories_data.categories.iter().any(|pc| 
+            pc.file_name.as_ref() == Some(&old_category.file_name) ||
+            pc.name == old_category.name
+        );
+        
+        if !exists {
+            // Create new project category from replacement category
+            let new_project_category = ProjectCategory {
+                id: format!("migrated_{}", old_category.id),
+                name: old_category.name.clone(),
+                description: old_category.description.clone(),
+                icon: Some(old_category.icon.clone()),
+                color: old_category.color.clone(),
+                is_default: Some(false),
+                file_name: Some(old_category.file_name.clone()),
+                variable_definitions: vec![], // Start with empty variable definitions
+            };
+            
+            project_categories_data.categories.push(new_project_category);
+            migrated_count += 1;
+            
+            info!("Migrated category '{}' with file '{}'", old_category.name, old_category.file_name);
+        }
+    }
+    
+    // Save updated project categories
+    if migrated_count > 0 {
+        project_categories_data.last_updated = chrono::Utc::now().to_rfc3339();
+        save_project_categories_data(&project_categories_data)?;
+        info!("Migration completed: {} categories migrated", migrated_count);
+    } else {
+        info!("Migration completed: no new categories to migrate");
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn list_espanso_yaml_files() -> Result<Vec<String>, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let espanso_match_dir = home_dir.join("Library")
+        .join("Application Support")
+        .join("espanso")
+        .join("match");
+    
+    if !espanso_match_dir.exists() {
+        return Ok(vec![]);
+    }
+    
+    let mut yaml_files = vec![];
+    
+    // Read directory and filter for .yml files
+    let entries = fs::read_dir(&espanso_match_dir)
+        .map_err(|e| format!("Failed to read Espanso match directory: {}", e))?;
+    
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if extension == "yml" || extension == "yaml" {
+                        if let Some(file_name) = path.file_name() {
+                            if let Some(file_name_str) = file_name.to_str() {
+                                yaml_files.push(file_name_str.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    yaml_files.sort();
+    Ok(yaml_files)
+}
+
+#[tauri::command]
+fn delete_espanso_yaml_file(file_name: String) -> Result<(), String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let file_path = home_dir.join("Library")
+        .join("Application Support")
+        .join("espanso")
+        .join("match")
+        .join(&file_name);
+    
+    if !file_path.exists() {
+        return Err(format!("File {} not found", file_name));
+    }
+    
+    // Don't allow deleting certain protected files
+    let protected_files = vec![
+        "project_active_vars.yml",
+        "project_global_vars.yml", 
+        "project_selector.yml",
+        "categories.json"
+    ];
+    
+    if protected_files.contains(&file_name.as_str()) {
+        return Err(format!("Cannot delete protected file: {}", file_name));
+    }
+    
+    fs::remove_file(&file_path)
+        .map_err(|e| format!("Failed to delete file: {}", e))?;
+    
+    info!("Deleted Espanso YAML file: {}", file_name);
+    Ok(())
+}
+
+#[tauri::command]
+fn select_yaml_file() -> Result<Option<String>, String> {
+    use rfd::FileDialog;
+    
+    let file = FileDialog::new()
+        .set_title("Select YAML File to Import")
+        .add_filter("YAML files", &["yml", "yaml"])
+        .add_filter("All files", &["*"])
+        .pick_file();
+    
+    Ok(file.map(|p| p.display().to_string()))
+}
+
+#[tauri::command]
+fn ensure_project_categories_have_filenames() -> Result<(), String> {
+    info!("Ensuring all project categories have fileName fields and YAML files");
+    
+    let mut data = load_project_categories_data()?;
+    let mut updated = false;
+    
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let espanso_match_dir = home_dir.join("Library")
+        .join("Application Support")
+        .join("espanso")
+        .join("match");
+    
+    // Ensure Espanso match directory exists
+    fs::create_dir_all(&espanso_match_dir)
+        .map_err(|e| format!("Failed to create Espanso match directory: {}", e))?;
+    
+    for category in &mut data.categories {
+        let mut category_updated = false;
+        
+        // Add fileName if missing
+        if category.file_name.is_none() {
+            // Generate fileName from category name or use fallback based on id
+            let file_name = if category.name.is_empty() {
+                format!("{}.yml", category.id)
+            } else {
+                format!("{}.yml", category.name.to_lowercase().replace(' ', "_").replace("-", "_"))
+            };
+            
+            category.file_name = Some(file_name.clone());
+            category_updated = true;
+            
+            info!("Added fileName '{}' to category '{}'", file_name, category.name);
+        }
+        
+        // Create YAML file if it doesn't exist
+        if let Some(file_name) = &category.file_name {
+            let yaml_path = espanso_match_dir.join(file_name);
+            
+            if !yaml_path.exists() {
+                // Create initial YAML content with category description
+                let mut yaml_content = format!("# {}\n", category.name);
+                if let Some(desc) = &category.description {
+                    yaml_content.push_str(&format!("# {}\n", desc));
+                }
+                yaml_content.push_str("matches:\n  # Add your replacements here\n  # Example:\n  # - trigger: \":hello\"\n  #   replace: \"Hello, World!\"\n");
+                
+                atomic_write(&yaml_path, &yaml_content)
+                    .map_err(|e| format!("Failed to create YAML file for category '{}': {}", category.name, e))?;
+                
+                info!("Created YAML file for category '{}': {:?}", category.name, yaml_path);
+                category_updated = true;
+            }
+        }
+        
+        if category_updated {
+            updated = true;
+        }
+    }
+    
+    if updated {
+        data.last_updated = chrono::Utc::now().to_rfc3339();
+        save_project_categories_data(&data)?;
+        info!("Updated project categories with fileName fields and created missing YAML files");
+    } else {
+        info!("All project categories already have fileName fields and YAML files");
+    }
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -862,6 +1511,7 @@ pub fn run() {
             delete_project,
             set_active_project,
             handle_project_selection,
+            clear_project_espanso_config,
             open_directory_dialog,
             get_categories,
             create_category,
@@ -873,7 +1523,26 @@ pub fn run() {
             write_saved_extensions,
             save_extension,
             delete_saved_extension,
-            increment_extension_usage
+            increment_extension_usage,
+            // LLM API commands
+            llm_api::generate_with_llm,
+            llm_api::validate_llm_config,
+            secure_storage::store_llm_api_key,
+            secure_storage::get_llm_api_key,
+            secure_storage::delete_llm_api_key,
+            secure_storage::check_llm_api_key,
+            read_llm_configs,
+            write_llm_configs,
+            read_ai_prompts,
+            write_ai_prompts,
+            // Project Categories commands
+            read_project_categories,
+            write_project_categories,
+            migrate_replacement_categories_to_project_categories,
+            ensure_project_categories_have_filenames,
+            list_espanso_yaml_files,
+            delete_espanso_yaml_file,
+            select_yaml_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

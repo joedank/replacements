@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-05-29T03-53-27-009Z",
+  "backupLocation": "/Volumes/4TB/Users/josephmcmyne/myProjects/BRM/backups/migration_2025-05-29T03-53-27-009Z",
+  "migratedCategories": [
+    {
+      "name": "AI Prompts",
+      "variableCount": 0,
+      "source": "ai_prompts.yml"
+    },
+    {
+      "name": "General",
+      "variableCount": 4,
+      "source": "base.yml"
+    },
+    {
+      "name": "Temporary",
+      "variableCount": 0,
+      "source": "better_replacements.yml"
+    }
+  ],
+  "migratedProjects": 0,
+  "errors": [
+    "Fatal error: projects is not iterable"
+  ],
+  "warnings": []
+}

@@ -6,13 +6,17 @@ import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { VariablesProvider } from './contexts/VariablesContext';
 import { SavedExtensionsProvider } from './contexts/SavedExtensionsContext';
+import { LLMProvider } from './contexts/LLMContext';
+import { ProjectCategoriesProvider } from './contexts/ProjectCategoriesContext';
 
 // Lazy load components to split them into separate chunks
 const Dashboard = lazy(() => import('./components/dashboard').then(m => ({ default: m.Dashboard })));
 const CategoryReplacements = lazy(() => import('./components/replacements').then(m => ({ default: m.CategoryReplacements })));
 const GeneralSettings = lazy(() => import('./components/settings').then(m => ({ default: m.GeneralSettings })));
+const APISettings = lazy(() => import('./components/settings').then(m => ({ default: m.APISettings })));
+const AIPromptSettings = lazy(() => import('./components/settings').then(m => ({ default: m.AIPromptSettings })));
+const ProjectCategorySettings = lazy(() => import('./components/settings').then(m => ({ default: m.ProjectCategorySettings })));
 const Projects = lazy(() => import('./components/projects').then(m => ({ default: m.Projects })));
-const CategorySettings = lazy(() => import('./components/categories').then(m => ({ default: m.CategorySettings })));
 
 // Loading component for lazy-loaded components
 const LoadingFallback = () => (
@@ -35,15 +39,36 @@ function AppContent() {
     );
   }
   
-  if (selectedMenuItem === 'category-settings') {
+  if (selectedMenuItem === 'api-settings') {
     return (
       <MainLayout>
         <Suspense fallback={<LoadingFallback />}>
-          <CategorySettings />
+          <APISettings />
         </Suspense>
       </MainLayout>
     );
   }
+  
+  if (selectedMenuItem === 'ai-prompts-settings') {
+    return (
+      <MainLayout>
+        <Suspense fallback={<LoadingFallback />}>
+          <AIPromptSettings />
+        </Suspense>
+      </MainLayout>
+    );
+  }
+  
+  if (selectedMenuItem === 'project-category-settings') {
+    return (
+      <MainLayout>
+        <Suspense fallback={<LoadingFallback />}>
+          <ProjectCategorySettings />
+        </Suspense>
+      </MainLayout>
+    );
+  }
+  
   
   if (selectedMenuItem === 'projects') {
     return (
@@ -140,11 +165,15 @@ function ThemedApp() {
       {modalContextHolder}
       <ReplacementProvider>
         <ProjectProvider>
-          <VariablesProvider>
-            <SavedExtensionsProvider>
-              <AppContent />
-            </SavedExtensionsProvider>
-          </VariablesProvider>
+          <ProjectCategoriesProvider>
+            <VariablesProvider>
+              <SavedExtensionsProvider>
+                <LLMProvider>
+                  <AppContent />
+                </LLMProvider>
+              </SavedExtensionsProvider>
+            </VariablesProvider>
+          </ProjectCategoriesProvider>
         </ProjectProvider>
       </ReplacementProvider>
     </ConfigProvider>

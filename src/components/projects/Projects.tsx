@@ -14,33 +14,31 @@ import {
   Badge,
   Dropdown,
   Divider,
-  Checkbox,
+  Select,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   FolderOpenOutlined,
-  RocketOutlined,
-  FileTextOutlined,
   CheckCircleOutlined,
   SearchOutlined,
   CodeOutlined,
   MoreOutlined,
-  ConsoleSqlOutlined,
 } from '@ant-design/icons';
 import { useProjects } from '../../contexts/ProjectContext';
-import { useVariables } from '../../contexts/VariablesContext';
+import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
 import { Project, DEFAULT_PROJECT_VALUES } from '../../types/project';
-import { invoke } from '@tauri-apps/api/core';
+import { ProjectCategoryVariableEditor } from './ProjectCategoryVariableEditor';
+import { ErrorBoundary } from '../common';
+import { getCategoryValue } from '../../utils/projectHelpers';
 import type { MenuProps } from 'antd';
 
 const { Title, Text, Paragraph } = Typography;
-const { TextArea } = Input;
 
 export const Projects: React.FC = () => {
   const {
-    projects,
+    filteredProjects,
     activeProject,
     loading,
     createProject,
@@ -49,43 +47,58 @@ export const Projects: React.FC = () => {
     setActiveProject,
   } = useProjects();
   
-  const { categories } = useVariables();
+  const { categories } = useProjectCategories();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
+  
+  // State for category-based variable management
+  const [categoryValues, setCategoryValues] = useState<Record<string, Record<string, string>>>({});
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
   const handleCreate = () => {
+    console.log('handleCreate called, categories:', categories);
+    
+    // Ensure we have categories before allowing project creation
+    if (categories.length === 0) {
+      message.error('Please create at least one project category before creating projects. Go to Settings → Project Categories.');
+      return;
+    }
+    
     setEditingProject(null);
     form.resetFields();
-    form.setFieldsValue(DEFAULT_PROJECT_VALUES);
+    setCategoryValues({});
+    
+    // Set default values including the first available category
+    const defaultCategory = categories.find(c => c.isDefault) || categories[0];
+    console.log('Default category:', defaultCategory);
+    
+    const initialValues = {
+      ...DEFAULT_PROJECT_VALUES,
+      categoryId: defaultCategory?.id || '',
+    };
+    console.log('Initial values:', initialValues);
+    
+    form.setFieldsValue(initialValues);
+    setSelectedCategoryId(defaultCategory?.id || '');
     setIsModalOpen(true);
   };
 
   const handleEdit = (project: Project) => {
     setEditingProject(project);
+    form.setFieldsValue(project);
     
-    // Convert custom variables to array format for the select
-    const customVarKeys = project.customVariables 
-      ? Object.keys(project.customVariables).map(key => `{{${key}}}`)
-      : [];
-    
-    form.setFieldsValue({
-      ...project,
-      customVariables: customVarKeys,
-    });
-    
-    // Set the actual values after a small delay to ensure form is ready
-    setTimeout(() => {
-      if (project.customVariables) {
-        form.setFieldsValue({
-          customVariables: project.customVariables,
-        });
-      }
-    }, 100);
+    // Load project's category values and set selected category
+    setCategoryValues(project.categoryValues || {});
+    setSelectedCategoryId(project.categoryId);
     
     setIsModalOpen(true);
+  };
+
+  const handleCategoryChange = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
   };
 
   const handleDelete = (id: string) => {
@@ -110,11 +123,17 @@ export const Projects: React.FC = () => {
 
   const handleSubmit = async (values: any) => {
     try {
+      // Prepare project data with category values
+      const projectData = {
+        ...values,
+        categoryValues: categoryValues,
+      };
+      
       if (editingProject) {
-        await updateProject(editingProject.id, values);
+        await updateProject(editingProject.id, projectData);
         message.success('Project updated successfully');
       } else {
-        await createProject({ ...values, isActive: false });
+        await createProject({ ...projectData, isActive: false });
         message.success('Project created successfully');
       }
       setIsModalOpen(false);
@@ -123,17 +142,6 @@ export const Projects: React.FC = () => {
     }
   };
 
-  const handleBrowseDirectory = async () => {
-    try {
-      const selected = await invoke<string | null>('open_directory_dialog');
-      
-      if (selected) {
-        form.setFieldsValue({ directory: selected });
-      }
-    } catch (error) {
-      console.error('Failed to open directory picker:', error);
-    }
-  };
 
   const getDropdownItems = (project: Project): MenuProps['items'] => [
     {
@@ -161,16 +169,23 @@ export const Projects: React.FC = () => {
   ];
 
   // Filter projects based on search
-  const filteredProjects = projects.filter(project => {
+  const searchFilteredProjects = filteredProjects.filter(project => {
     const searchLower = searchText.toLowerCase();
+    const description = project.description || '';
+    const stack = getCategoryValue(project, 'tech_stack') || getCategoryValue(project, 'active_project_stack');
+    
     return (
       project.name.toLowerCase().includes(searchLower) ||
-      project.description.toLowerCase().includes(searchLower) ||
-      project.stack.toLowerCase().includes(searchLower)
+      description.toLowerCase().includes(searchLower) ||
+      stack.toLowerCase().includes(searchLower)
     );
   });
 
-  const renderStackTags = (stack: string) => {
+
+  const renderStackTags = (project: Project) => {
+    const stack = getCategoryValue(project, 'tech_stack') || getCategoryValue(project, 'active_project_stack');
+    if (!stack) return null;
+    
     const stacks = stack.split(',').map(s => s.trim()).filter(s => s);
     return (
       <Space wrap>
@@ -184,7 +199,14 @@ export const Projects: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div 
+      style={{ 
+        height: '100%', 
+        overflow: 'auto',
+        padding: '24px',
+      }}
+      className="custom-scrollbar"
+    >
       <Card>
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={4} style={{ margin: 0 }}>Projects</Title>
@@ -202,7 +224,7 @@ export const Projects: React.FC = () => {
           </Space>
         </div>
 
-        {filteredProjects.length === 0 ? (
+        {searchFilteredProjects.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
@@ -225,7 +247,7 @@ export const Projects: React.FC = () => {
             itemLayout="vertical"
             size="large"
             loading={loading}
-            dataSource={filteredProjects}
+            dataSource={searchFilteredProjects}
             renderItem={(project) => (
               <List.Item
                 key={project.id}
@@ -252,44 +274,40 @@ export const Projects: React.FC = () => {
                           ellipsis={{ rows: 2, expandable: true }} 
                           style={{ margin: 0 }}
                         >
-                          {project.description}
+                          {project.description || 'No description'}
                         </Paragraph>
-                        {renderStackTags(project.stack)}
+                        {renderStackTags(project)}
                       </Space>
                     }
                   />
                   <div style={{ marginTop: 16 }}>
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      <Space>
-                        <FolderOpenOutlined />
-                        <Text type="secondary" copyable={{ text: project.directory }}>
-                          {project.directory}
-                        </Text>
-                      </Space>
+                      {getCategoryValue(project, 'directory') || getCategoryValue(project, 'active_project_directory') ? (
+                        <Space>
+                          <FolderOpenOutlined />
+                          <Text type="secondary" copyable={{ text: getCategoryValue(project, 'directory') || getCategoryValue(project, 'active_project_directory') }}>
+                            {getCategoryValue(project, 'directory') || getCategoryValue(project, 'active_project_directory')}
+                          </Text>
+                        </Space>
+                      ) : null}
                       <Space split="|">
-                        <Space>
-                          <RocketOutlined />
-                          <Text type="secondary" code>
-                            {project.restartCommand}
-                          </Text>
-                        </Space>
-                        <Space>
-                          <ConsoleSqlOutlined />
-                          <Text type="secondary" code>
-                            {project.logCommand}
-                          </Text>
-                        </Space>
+                        {getCategoryValue(project, 'restart_command') || getCategoryValue(project, 'active_project_restart_cmd') ? (
+                          <Space>
+                            <Text type="secondary">Restart:</Text>
+                            <Text type="secondary" code>
+                              {getCategoryValue(project, 'restart_command') || getCategoryValue(project, 'active_project_restart_cmd')}
+                            </Text>
+                          </Space>
+                        ) : null}
+                        {getCategoryValue(project, 'log_command') || getCategoryValue(project, 'active_project_log_cmd') ? (
+                          <Space>
+                            <Text type="secondary">Logs:</Text>
+                            <Text type="secondary" code>
+                              {getCategoryValue(project, 'log_command') || getCategoryValue(project, 'active_project_log_cmd')}
+                            </Text>
+                          </Space>
+                        ) : null}
                       </Space>
-                      {project.customVariables && Object.keys(project.customVariables).length > 0 && (
-                        <div style={{ marginTop: 8 }}>
-                          <Text type="secondary" style={{ marginRight: 8 }}>Custom Variables:</Text>
-                          {Object.entries(project.customVariables).map(([key, value]) => (
-                            <Tag key={key} color="purple">
-                              {`{{${key}}}`}: {value}
-                            </Tag>
-                          ))}
-                        </div>
-                      )}
                     </Space>
                   </div>
                   <Dropdown
@@ -319,7 +337,8 @@ export const Projects: React.FC = () => {
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         footer={null}
-        width={600}
+        width={1000}
+        style={{ top: 20 }}
       >
         <Form
           form={form}
@@ -338,143 +357,53 @@ export const Projects: React.FC = () => {
           <Form.Item
             name="description"
             label="Description"
-            rules={[{ required: true, message: 'Please enter description' }]}
+            help="Optional description to help identify what this project is for"
           >
-            <TextArea 
-              rows={3} 
-              placeholder="Brief description of the project"
-              showCount
+            <Input.TextArea 
+              placeholder="Brief description of the project..." 
+              rows={3}
               maxLength={500}
+              showCount
             />
           </Form.Item>
 
           <Form.Item
-            name="stack"
-            label="Technology Stack"
-            rules={[{ required: true, message: 'Please enter technology stack' }]}
-            extra="Separate multiple technologies with commas (e.g., React, TypeScript, Node.js)"
-          >
-            <Input
-              placeholder="React, TypeScript, Node.js"
-              prefix={<RocketOutlined />}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="directory"
-            label="Project Directory"
-            rules={[{ required: true, message: 'Please enter project directory' }]}
-          >
-            <Input
-              placeholder="/path/to/project"
-              prefix={<FolderOpenOutlined />}
-              suffix={
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<FolderOpenOutlined />}
-                  onClick={handleBrowseDirectory}
-                >
-                  Browse
-                </Button>
+            name="categoryId"
+            label="Category"
+            rules={[
+              { required: true, message: 'Please select a category' },
+              {
+                validator: (_, value) => {
+                  if (value && !categories.find(c => c.id === value)) {
+                    return Promise.reject('Please select a valid category');
+                  }
+                  return Promise.resolve();
+                }
               }
+            ]}
+          >
+            <Select
+              placeholder="Select project category"
+              onChange={handleCategoryChange}
+              options={categories.map(cat => ({
+                label: cat.name,
+                value: cat.id,
+              }))}
             />
           </Form.Item>
 
-          <Form.Item
-            name="restartCommand"
-            label="Restart Command"
-            rules={[{ required: true, message: 'Please enter restart command' }]}
-          >
-            <Input placeholder="npm run dev" />
-          </Form.Item>
-
-          <Form.Item
-            name="logCommand"
-            label="Log Command"
-            rules={[{ required: true, message: 'Please enter log command' }]}
-          >
-            <Input
-              placeholder="npm run logs"
-              prefix={<FileTextOutlined />}
-            />
-          </Form.Item>
-
-          <Divider>Custom Variables</Divider>
+          <Divider>Project Variables</Divider>
           
-          {(() => {
-            const projectVarsCategory = categories.find(c => c.id === 'project-variables');
-            if (!projectVarsCategory || projectVarsCategory.variables.length === 0) {
-              return (
-                <div style={{ marginBottom: 24, textAlign: 'center' }}>
-                  <Text type="secondary">
-                    No custom project variables available. Create them in the Variables Manager.
-                  </Text>
-                </div>
-              );
-            }
-            
-            return (
-              <Space direction="vertical" style={{ width: '100%', marginBottom: 24 }}>
-                <Text type="secondary">
-                  Select which custom variables to include with this project:
-                </Text>
-                {projectVarsCategory.variables.map(variable => {
-                  const varKey = variable.value.replace(/[{}]/g, '');
-                  return (
-                    <div key={variable.id} style={{ marginBottom: 16 }}>
-                      <Space style={{ marginBottom: 8 }}>
-                        <Checkbox
-                          checked={form.getFieldValue(['customVariables', varKey]) !== undefined}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            const currentValues = form.getFieldValue('customVariables') || {};
-                            if (checked) {
-                              form.setFieldsValue({
-                                customVariables: {
-                                  ...currentValues,
-                                  [varKey]: variable.preview || '',
-                                }
-                              });
-                            } else {
-                              delete currentValues[varKey];
-                              form.setFieldsValue({ customVariables: currentValues });
-                            }
-                          }}
-                        >
-                          <Text code>{variable.value}</Text>
-                          <Text type="secondary">- {variable.name}</Text>
-                        </Checkbox>
-                      </Space>
-                      
-                      <Form.Item
-                        noStyle
-                        shouldUpdate={(prevValues, currentValues) => 
-                          prevValues.customVariables?.[varKey] !== currentValues.customVariables?.[varKey]
-                        }
-                      >
-                        {({ getFieldValue }) => {
-                          const hasValue = getFieldValue(['customVariables', varKey]) !== undefined;
-                          if (!hasValue) return null;
-                          
-                          return (
-                            <Form.Item
-                              name={['customVariables', varKey]}
-                              label={<Text type="secondary">Value for this project:</Text>}
-                              rules={[{ required: true, message: 'Please enter a value' }]}
-                              style={{ marginLeft: 24 }}
-                            >
-                              <Input placeholder={variable.preview || `Value for ${variable.name}`} />
-                            </Form.Item>
-                          );
-                        }}
-                      </Form.Item>
-                    </div>
-                  );
-                })}
-              </Space>
-            );
-          })()}
+          <div style={{ marginBottom: 24 }}>
+            <ErrorBoundary>
+              <ProjectCategoryVariableEditor
+                projectId={editingProject?.id || 'new'}
+                selectedCategoryId={selectedCategoryId}
+                categoryValues={categoryValues}
+                onChange={setCategoryValues}
+              />
+            </ErrorBoundary>
+          </div>
 
           <Form.Item>
             <Space>

@@ -9,7 +9,14 @@ export const GeneralSettings: React.FC = () => {
   const { themeMode, setThemeMode } = useTheme();
 
   return (
-    <div>
+    <div 
+      style={{ 
+        height: '100%', 
+        overflow: 'auto',
+        padding: '24px',
+      }}
+      className="custom-scrollbar"
+    >
       <Title level={2}>General Settings</Title>
       
       <Card>

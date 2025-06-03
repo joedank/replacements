@@ -37,6 +37,8 @@ import { useVariables } from '../../contexts/VariablesContext';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useReplacements } from '../../contexts/ReplacementContext';
 import { CustomVariable, CustomVariableCategory } from '../../types/variables';
+import { validateVariableKey, validateVariableValue, suggestValidKey } from '../../utils/validateVariable';
+import { getProjectStack, getProjectDirectory, getProjectRestartCommand, getProjectLogCommand } from '../../utils/projectHelpers';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -119,6 +121,29 @@ export const VariablesManager: React.FC<VariablesManagerProps> = ({ visible, onC
     if (!selectedCategoryId) return;
     
     try {
+      // Get all existing variable names for duplicate checking
+      const existingKeys: string[] = [];
+      categories.forEach(cat => {
+        cat.variables.forEach(v => existingKeys.push(v.name));
+      });
+      
+      // Validate variable key
+      const keyValidation = validateVariableKey(values.name, existingKeys);
+      if (!keyValidation.isValid) {
+        message.error(keyValidation.error);
+        return;
+      }
+      
+      if (keyValidation.warning) {
+        message.warning(keyValidation.warning);
+      }
+      
+      // Validate variable value
+      const valueValidation = validateVariableValue(values.value);
+      if (valueValidation.warning) {
+        message.info(valueValidation.warning);
+      }
+      
       await addVariable(selectedCategoryId, {
         name: values.name,
         value: values.value,
@@ -250,10 +275,10 @@ export const VariablesManager: React.FC<VariablesManagerProps> = ({ visible, onC
         <List
           dataSource={[
             { name: 'Active Project Name', value: '{{active_project_name}}', preview: projects.find(p => p.isActive)?.name || 'No active project' },
-            { name: 'Project Stack', value: '{{active_project_stack}}', preview: projects.find(p => p.isActive)?.stack || 'No active project' },
-            { name: 'Project Directory', value: '{{active_project_directory}}', preview: projects.find(p => p.isActive)?.directory || 'No active project' },
-            { name: 'Restart Command', value: '{{active_project_restart_cmd}}', preview: projects.find(p => p.isActive)?.restartCommand || 'No active project' },
-            { name: 'Log Command', value: '{{active_project_log_cmd}}', preview: projects.find(p => p.isActive)?.logCommand || 'No active project' },
+            { name: 'Project Stack', value: '{{active_project_stack}}', preview: projects.find(p => p.isActive) ? getProjectStack(projects.find(p => p.isActive)!) : 'No active project' },
+            { name: 'Project Directory', value: '{{active_project_directory}}', preview: projects.find(p => p.isActive) ? getProjectDirectory(projects.find(p => p.isActive)!) : 'No active project' },
+            { name: 'Restart Command', value: '{{active_project_restart_cmd}}', preview: projects.find(p => p.isActive) ? getProjectRestartCommand(projects.find(p => p.isActive)!) : 'No active project' },
+            { name: 'Log Command', value: '{{active_project_log_cmd}}', preview: projects.find(p => p.isActive) ? getProjectLogCommand(projects.find(p => p.isActive)!) : 'No active project' },
           ]}
           renderItem={(variable) => {
             const usages = findVariableUsage(variable.value);
@@ -386,7 +411,7 @@ export const VariablesManager: React.FC<VariablesManagerProps> = ({ visible, onC
                       )}
                     </Space>
                   }
-                  description={project.stack}
+                  description={getProjectStack(project)}
                 />
               </List.Item>
             )}
@@ -639,18 +664,61 @@ export const VariablesManager: React.FC<VariablesManagerProps> = ({ visible, onC
           <Form.Item
             name="name"
             label="Variable Name"
-            rules={[{ required: true, message: 'Please enter a variable name' }]}
+            rules={[
+              { required: true, message: 'Please enter a variable name' },
+              {
+                validator: async (_, value) => {
+                  if (!value) return;
+                  
+                  // Get all existing variable names
+                  const existingKeys: string[] = [];
+                  categories.forEach(cat => {
+                    cat.variables.forEach(v => {
+                      // Skip the current variable if editing
+                      if (!(editingVariable && v.id === editingVariable.variable.id)) {
+                        existingKeys.push(v.name);
+                      }
+                    });
+                  });
+                  
+                  const validation = validateVariableKey(value, existingKeys);
+                  if (!validation.isValid) {
+                    throw new Error(validation.error);
+                  }
+                  if (validation.warning) {
+                    // We can't show warnings in validator, so we'll show them on submit
+                    return;
+                  }
+                },
+              },
+            ]}
+            extra={"Only letters, numbers, and underscores. Max 50 characters."}
           >
-            <Input placeholder="e.g., My Email, Company Name, etc." />
+            <Input 
+              placeholder="e.g., my_email, company_name, etc."
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value && !validateVariableKey(value, []).isValid) {
+                  const suggested = suggestValidKey(value);
+                  if (suggested !== value) {
+                    message.info(`Try: ${suggested}`);
+                  }
+                }
+              }}
+            />
           </Form.Item>
 
           <Form.Item
             name="value"
             label="Variable Value"
             rules={[{ required: true, message: 'Please enter the variable value' }]}
+            extra={activeTab === 'project-variables' ? 
+              "This will be inserted as {{" + (variableForm.getFieldValue('name') || 'variable_name') + "}}" : 
+              "The text that will be inserted when you use this variable"
+            }
           >
             <Input 
-              placeholder="e.g., {{my_email}}, {{company_name}}, etc."
+              placeholder="e.g., john@example.com, Acme Corp, etc."
               style={{ fontFamily: 'monospace' }}
             />
           </Form.Item>

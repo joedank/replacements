@@ -16,7 +16,8 @@ import * as Icons from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useReplacements } from '../../contexts/ReplacementContext';
 import { useProjects } from '../../contexts/ProjectContext';
-import { invoke } from '@tauri-apps/api/core';
+import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
+import { getCategoryValue } from '../../utils/projectHelpers';
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Title } = Typography;
@@ -25,22 +26,12 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
-interface Category {
-  id: string;
-  name: string;
-  fileName: string;
-  description?: string;
-  icon: string;
-  color?: string;
-  isDefault?: boolean;
-}
 
 type MenuItem = Required<MenuProps>['items'][number];
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>(['dashboard']);
-  const [categories, setCategories] = useState<Category[]>([]);
   
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -52,27 +43,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   } = useReplacements();
   
   const {
-    projects,
+    filteredProjects,
     activeProject,
+    selectedCategoryId,
     loadProjects,
-    setActiveProject
+    setActiveProject,
+    setSelectedCategory
   } = useProjects();
+  
+  const { categories: projectCategories } = useProjectCategories();
 
-  // Load categories
-  const loadCategories = async () => {
-    try {
-      const data = await invoke<Category[]>('get_categories');
-      setCategories(data);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
-    }
-  };
-
-  // Load replacements, projects, and categories on component mount
+  // Load replacements and projects on component mount
   useEffect(() => {
     loadReplacements();
     loadProjects();
-    loadCategories();
   }, [loadReplacements, loadProjects]);
 
   const handleMenuClick: MenuProps['onClick'] = (e) => {
@@ -104,9 +88,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: 'replacements',
       icon: <EditOutlined />,
       label: 'Replacements',
-      children: categories.map((category) => ({
-        key: `category-${category.id}`,
-        icon: getIconComponent(category.icon),
+      children: projectCategories.filter(cat => cat.fileName).map((category) => ({
+        key: `category-${category.fileName?.replace('.yml', '')}`,
+        icon: getIconComponent(category.icon || 'FileTextOutlined'),
         label: category.name,
       })),
     },
@@ -145,8 +129,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           label: 'General',
         },
         {
-          key: 'category-settings',
-          label: 'Categories',
+          key: 'api-settings',
+          label: 'API Configuration',
+        },
+        {
+          key: 'ai-prompts-settings',
+          label: 'AI Prompts',
+        },
+        {
+          key: 'project-category-settings',
+          label: 'Project Categories',
         },
         {
           key: 'espanso-config',
@@ -244,6 +236,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           
           <Space>
             <Select
+              style={{ width: 200 }}
+              placeholder={selectedCategoryId ? undefined : "All categories"}
+              value={selectedCategoryId || undefined}
+              onChange={(value) => setSelectedCategory(value || null)}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={[
+                {
+                  label: 'All categories',
+                  value: '',
+                },
+                ...projectCategories.map(category => ({
+                  label: category.name,
+                  value: category.id,
+                }))
+              ]}
+              suffixIcon={<FolderOpenOutlined />}
+            />
+            
+            <Select
               style={{ width: 250 }}
               placeholder="Select active project"
               value={activeProject?.id || undefined}
@@ -259,13 +275,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   label: 'No active project',
                   value: '',
                 },
-                ...projects.map(project => ({
+                ...filteredProjects.map(project => ({
                   label: project.name,
                   value: project.id,
-                  title: project.description,
+                  title: getCategoryValue(project, 'project_description') || 'No description',
                 }))
               ]}
-              suffixIcon={<FolderOpenOutlined />}
+              suffixIcon={<ProjectOutlined />}
             />
           </Space>
         </Header>

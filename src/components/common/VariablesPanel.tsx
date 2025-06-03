@@ -26,7 +26,9 @@ import {
 import type { TreeDataNode } from 'antd';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useVariables } from '../../contexts/VariablesContext';
+import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
 import { VariablesManager } from '../variables/VariablesManager';
+import { getCategoryValue } from '../../utils/projectHelpers';
 
 const { Sider } = Layout;
 const { Search } = Input;
@@ -45,16 +47,17 @@ export const VariablesPanel: React.FC<VariablesPanelProps> = ({ onVariableSelect
   
   const { activeProject } = useProjects();
   const { categories } = useVariables();
+  const { categories: projectCategories } = useProjectCategories();
 
   // Get live preview for variables
   const getVariablePreview = (variable: string): string => {
     const now = new Date();
     const previews: Record<string, string> = {
       '{{active_project_name}}': activeProject?.name || 'My Project',
-      '{{active_project_stack}}': activeProject?.stack || 'React, TypeScript',
-      '{{active_project_directory}}': activeProject?.directory || '/path/to/project',
-      '{{active_project_restart_cmd}}': activeProject?.restartCommand || 'npm run dev',
-      '{{active_project_log_cmd}}': activeProject?.logCommand || 'npm run logs',
+      '{{active_project_stack}}': activeProject ? getCategoryValue(activeProject, 'tech_stack') || getCategoryValue(activeProject, 'active_project_stack') || 'React, TypeScript' : 'React, TypeScript',
+      '{{active_project_directory}}': activeProject ? getCategoryValue(activeProject, 'directory') || getCategoryValue(activeProject, 'active_project_directory') || '/path/to/project' : '/path/to/project',
+      '{{active_project_restart_cmd}}': activeProject ? getCategoryValue(activeProject, 'restart_command') || getCategoryValue(activeProject, 'active_project_restart_cmd') || 'npm run dev' : 'npm run dev',
+      '{{active_project_log_cmd}}': activeProject ? getCategoryValue(activeProject, 'log_command') || getCategoryValue(activeProject, 'active_project_log_cmd') || 'npm run logs' : 'npm run logs',
       '{{date}}': now.toLocaleDateString(),
       '{{time}}': now.toLocaleTimeString(),
       '{{datetime}}': now.toLocaleString(),
@@ -66,10 +69,16 @@ export const VariablesPanel: React.FC<VariablesPanelProps> = ({ onVariableSelect
       '{{clipboard}}': 'Current clipboard content',
     };
     
-    // Add active project's custom variables
-    if (activeProject?.customVariables) {
-      Object.entries(activeProject.customVariables).forEach(([key, value]) => {
-        previews[`{{${key}}}`] = value;
+    // Add active project's category variables
+    if (activeProject?.categoryValues && projectCategories) {
+      projectCategories.forEach(category => {
+        const categoryValues = activeProject.categoryValues?.[category.id] || {};
+        category.variableDefinitions.forEach(varDef => {
+          const value = categoryValues[varDef.id] || varDef.defaultValue;
+          if (value) {
+            previews[`{{${varDef.name}}}`] = value;
+          }
+        });
       });
     }
     
@@ -130,11 +139,16 @@ export const VariablesPanel: React.FC<VariablesPanelProps> = ({ onVariableSelect
         createVariableNode('{{active_project_directory}}', 'active_project_directory'),
         createVariableNode('{{active_project_restart_cmd}}', 'active_project_restart_cmd'),
         createVariableNode('{{active_project_log_cmd}}', 'active_project_log_cmd'),
-        // Add custom variables for active project
-        ...(activeProject?.customVariables ? 
-          Object.keys(activeProject.customVariables).map(key => 
-            createVariableNode(`{{${key}}}`, `custom_project_${key}`)
-          ) : []
+        // Add category variables for active project
+        ...(activeProject?.categoryValues && projectCategories ? 
+          projectCategories.flatMap(category => {
+            const categoryValues = activeProject.categoryValues?.[category.id] || {};
+            return category.variableDefinitions
+              .filter(varDef => categoryValues[varDef.id] || varDef.defaultValue)
+              .map(varDef => 
+                createVariableNode(`{{${varDef.name}}}`, `category_${category.id}_${varDef.id}`)
+              );
+          }) : []
         ),
       ],
     },

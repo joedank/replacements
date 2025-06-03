@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Project } from '../types/project';
 
 interface ProjectContextType {
   projects: Project[];
+  filteredProjects: Project[];
   activeProject: Project | null;
+  selectedCategoryId: string | null;
   loading: boolean;
   error: string | null;
   loadProjects: () => Promise<void>;
@@ -12,6 +14,7 @@ interface ProjectContextType {
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setActiveProject: (id: string | null) => Promise<void>;
+  setSelectedCategory: (categoryId: string | null) => void;
   generateEspansoConfig: () => Promise<void>;
 }
 
@@ -32,10 +35,17 @@ interface ProjectProviderProps {
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProjectState] = useState<Project | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const switchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadProjects = async () => {
+  // Filter projects based on selected category
+  const filteredProjects = selectedCategoryId 
+    ? projects.filter(p => p.categoryId === selectedCategoryId)
+    : projects;
+
+  const loadProjects = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -48,7 +58,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -98,32 +108,64 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   };
 
-  const setActiveProject = async (id: string | null) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await invoke('set_active_project', { id });
-      const project = id ? projects.find(p => p.id === id) || null : null;
-      setActiveProjectState(project);
-      if (project) {
-        await generateEspansoConfig();
-      }
-    } catch (err) {
-      setError(err as string);
-    } finally {
-      setLoading(false);
+  const setActiveProject = useCallback(async (id: string | null) => {
+    // Clear any pending switches
+    if (switchTimeoutRef.current) {
+      clearTimeout(switchTimeoutRef.current);
     }
-  };
+
+    // Debounce rapid switches
+    
+    switchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Handle no project case explicitly
+        if (id === null) {
+          await invoke('set_active_project', { id: null });
+          setActiveProjectState(null);
+          // Clear Espanso config when no project is active
+          await invoke('clear_project_espanso_config');
+        } else {
+          await invoke('set_active_project', { id });
+          const project = projects.find(p => p.id === id) || null;
+          setActiveProjectState(project);
+          
+          // Only generate config if we have a valid project
+          if (project) {
+            await generateEspansoConfig();
+          }
+        }
+      } catch (err) {
+        setError(err as string);
+      } finally {
+        setLoading(false);
+      }
+    }, 300); // 300ms debounce
+  }, [projects]);
 
   const generateEspansoConfig = async () => {
-    if (!activeProject) return;
+    if (!activeProject) {
+      console.warn('No active project to generate config for');
+      return;
+    }
     
     try {
       // The Rust backend handles the YAML generation in set_active_project
       // This function is kept for API consistency but the actual work
       // is done when setting the active project
+      // Additional validation could be added here if needed
     } catch (err) {
       setError(err as string);
+    }
+  };
+
+  const setSelectedCategory = (categoryId: string | null) => {
+    setSelectedCategoryId(categoryId);
+    // If active project is not in the new category, clear it
+    if (categoryId && activeProject && activeProject.categoryId !== categoryId) {
+      setActiveProject(null);
     }
   };
 
@@ -131,9 +173,20 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     loadProjects();
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (switchTimeoutRef.current) {
+        clearTimeout(switchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const value: ProjectContextType = {
     projects,
+    filteredProjects,
     activeProject,
+    selectedCategoryId,
     loading,
     error,
     loadProjects,
@@ -141,6 +194,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     updateProject,
     deleteProject,
     setActiveProject,
+    setSelectedCategory,
     generateEspansoConfig,
   };
 

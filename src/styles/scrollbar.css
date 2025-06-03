@@ -16,8 +16,8 @@ body {
   /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
-  /* Force overflow scrollbars to always show */
-  overflow-y: scroll !important;
+  /* Show scrollbars only when needed */
+  overflow-y: auto;
 }
 
 /* Webkit browsers (Chrome, Safari, Edge) - Light theme */
@@ -123,9 +123,9 @@ body.dark .custom-scrollbar::-webkit-scrollbar-thumb:active {
   /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
-  /* Force horizontal overflow scrollbars to always show */
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+  /* Show horizontal scrollbars only when needed */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* Webkit browsers (Chrome, Safari, Edge) - Horizontal scrollbar */

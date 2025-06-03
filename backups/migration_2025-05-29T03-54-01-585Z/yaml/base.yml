@@ -1,0 +1,11 @@
+matches:
+- trigger: :espanso
+  replace: Hi there!
+- trigger: :date
+  replace: '{{mydate}}'
+- trigger: :shell
+  replace: '{{output}}'
+- trigger: :debug
+  replace: '{{debug_output}}'
+- trigger: :projecttemplate
+  replace: '{{template_output}}'

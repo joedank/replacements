@@ -1,6 +1,15 @@
 import { SavedExtension } from '../types/savedExtensions';
-import { parseVariable, parseDateOffset, applyDateOffset, applyFilters, formatDate as formatDateWithPattern, findAllVariables } from './variableParser';
+import { parseVariable, parseDateOffset, applyDateOffset, applyFilters, formatDate as formatDateWithPattern, findAllVariables, ParsedVariable } from './variableParser';
 import { CustomVariable } from '../types/variables';
+import { ProjectCategory } from '../types/projectCategories';
+
+// Enhanced validation result
+export interface VariableValidationResult {
+  variables: ParsedVariable[];
+  undefinedVariables: ParsedVariable[];
+  projectSuggestions: string[];
+  preview: string;
+}
 
 // Process replacement text with variables for preview
 export const processReplacementPreview = (
@@ -30,6 +39,91 @@ export const processReplacementPreview = (
   
   return processed;
 };
+
+// Enhanced preview with validation - core of Phase 1
+export const enhancePreviewWithValidation = (
+  text: string,
+  options?: {
+    projectVariables?: Record<string, string>;
+    customVariables?: CustomVariable[];
+    projectCategories?: ProjectCategory[];
+    activeProjectCategoryId?: string;
+  }
+): VariableValidationResult => {
+  // Get existing preview result
+  const preview = processReplacementPreview(text, options);
+  
+  // Find all variables in the text
+  const variables = findAllVariables(text);
+  
+  // Identify undefined variables
+  const undefinedVariables = variables.filter(variable => {
+    // Check if variable is built-in
+    if (isBuiltInVariable(variable.name)) {
+      return false;
+    }
+    
+    // Check if variable exists in project variables
+    if (options?.projectVariables && options.projectVariables[variable.name]) {
+      return false;
+    }
+    
+    // Check if variable exists in custom variables
+    if (options?.customVariables) {
+      const customVar = options.customVariables.find(v => v.name === variable.name);
+      if (customVar) {
+        return false;
+      }
+    }
+    
+    // Variable is undefined
+    return true;
+  });
+  
+  // Generate project suggestions for undefined variables
+  const projectSuggestions = generateQuickCreateSuggestions(
+    undefinedVariables,
+    options?.projectCategories || [],
+    options?.activeProjectCategoryId
+  );
+  
+  return {
+    variables,
+    undefinedVariables,
+    projectSuggestions,
+    preview,
+  };
+};
+
+// Helper function to check if a variable is built-in
+function isBuiltInVariable(name: string): boolean {
+  const builtIns = [
+    'date', 'time', 'datetime', 'year', 'month', 'day',
+    'clipboard', 'cursor', 'random', 'uuid',
+  ];
+  return builtIns.includes(name);
+}
+
+// Generate quick-create suggestions for undefined variables
+function generateQuickCreateSuggestions(
+  undefinedVariables: ParsedVariable[],
+  projectCategories: ProjectCategory[],
+  activeProjectCategoryId?: string
+): string[] {
+  if (!activeProjectCategoryId || undefinedVariables.length === 0) {
+    return [];
+  }
+  
+  const activeCategory = projectCategories.find(cat => cat.id === activeProjectCategoryId);
+  if (!activeCategory) {
+    return [];
+  }
+  
+  // For each undefined variable, suggest the active project category
+  return undefinedVariables.map(variable => 
+    `Create '${variable.name}' in ${activeCategory.name}`
+  );
+}
 
 // Process a single variable
 function processVariable(

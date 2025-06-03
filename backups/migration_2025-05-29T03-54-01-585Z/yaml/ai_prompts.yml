@@ -1,0 +1,94 @@
+matches:
+- trigger: :debug-help
+  replace: |
+    I'm debugging an issue in {{active_project_name}}, a {{active_project_stack}} project located at {{active_project_directory}}.
+    Issue details: $|$
+    Please help me with this {{active_project_stack}} debugging issue. Consider:
+    - Common {{active_project_stack}} debugging patterns
+    - Project-specific considerations
+    - Relevant debugging tools and techniques
+    If needed, I can restart the project with: {{active_project_restart_cmd}}
+    And view logs with: {{active_project_log_cmd}}
+- trigger: :code-review
+  replace: |
+    Please review this code from my {{active_project_stack}} project ({{active_project_name}}):
+    ```
+    $|$
+    ```
+    Consider the following for this {{active_project_stack}} project:
+    - Code quality and best practices
+    - Potential bugs or security issues
+    - Performance optimizations
+    - Maintainability and readability
+    - {{active_project_stack}}-specific patterns and conventions
+- trigger: :feature-help
+  replace: |
+    I need to implement a new feature in {{active_project_name}}, which uses {{active_project_stack}}.
+    Feature description: $|$
+    Please provide:
+    1. Implementation approach for {{active_project_stack}}
+    2. Code examples and patterns
+    3. Best practices to follow
+    4. Potential challenges and solutions
+    5. Testing recommendations
+    Project context:
+    - Directory: {{active_project_directory}}
+    - Restart command: {{active_project_restart_cmd}}
+- trigger: :test-help
+  replace: |
+    I need help with testing for my {{active_project_stack}} project ({{active_project_name}}).
+    What I need to test: $|$
+    Please provide guidance on:
+    - {{active_project_stack}}-specific testing approaches
+    - Test structure and organization
+    - Mocking and test data strategies
+    - Integration vs unit testing
+    - Testing tools and frameworks recommendations
+- trigger: :doc-help
+  replace: |
+    Help me document this code from my {{active_project_stack}} project:
+    ```
+    $|$
+    ```
+    Please create documentation that includes:
+    - Clear description of functionality
+    - Parameter explanations
+    - Return value documentation
+    - Usage examples
+    - {{active_project_stack}}-specific conventions
+    Format it appropriately for {{active_project_stack}} documentation standards.
+- trigger: :optimize-help
+  replace: |
+    I need to optimize performance in my {{active_project_stack}} project ({{active_project_name}}).
+    Performance issue: $|$
+    Please analyze and suggest:
+    - {{active_project_stack}}-specific optimization techniques
+    - Profiling and debugging approaches
+    - Common performance bottlenecks to check
+    - Tools for performance monitoring
+    - Code refactoring suggestions
+- trigger: :learn-help
+  replace: |
+    I'm learning {{active_project_stack}} concepts for my project {{active_project_name}}.
+    What I want to learn: $|$
+    Please explain:
+    - Core concepts with clear examples
+    - How it fits into {{active_project_stack}} ecosystem
+    - Practical usage patterns
+    - Common gotchas to avoid
+    - Next steps for deeper understanding
+    Keep explanations beginner-friendly but thorough.
+- trigger: :tar
+  replace: |2-
+      cd "{{active_project_directory}}/.." && \
+      COUNTER=1; \
+      while [ -f "{{active_project_name}}.tar.gz" ]; do \
+        COUNTER=$((COUNTER+1)); \
+        if [ ! -f "{{active_project_name}}$COUNTER.tar.gz" ]; then \
+          tar -czvf "{{active_project_name}}$COUNTER.tar.gz" {{tar_excludes}} "{{active_project_name}}/"; \
+          break; \
+        fi; \
+      done; \
+      if [ ! -f "{{active_project_name}}.tar.gz" ]; then \
+        tar -czvf "{{active_project_name}}.tar.gz" {{tar_excludes}} "{{active_project_name}}/"; \
+      fi

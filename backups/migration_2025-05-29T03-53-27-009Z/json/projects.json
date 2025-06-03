@@ -1,0 +1,35 @@
+{
+  "projects": [
+    {
+      "id": "6f0d16f6-255e-49f6-b675-b7f7d618e9ba",
+      "name": "Better replacements manager",
+      "description": "Used to manage and easily create text replacements with Espanso leveraging it’s power of extensions and a focus on coding with LLMs",
+      "stack": "TypeScript, React 18, Ant Design 5.25.2, Rust, Tauri v2",
+      "directory": "/Volumes/4TB/Users/josephmcmyne/myProjects/BRM",
+      "restartCommand": "./universal_build.sh --release",
+      "logCommand": "npm run logs",
+      "isActive": false,
+      "createdAt": "2025-05-23T14:05:48.428Z",
+      "updatedAt": "2025-05-23T14:05:48.428Z",
+      "variableDefinitions": null,
+      "variableValues": null,
+      "customVariables": null
+    },
+    {
+      "id": "a7470b6b-c453-4205-a1f2-40e93a9f6603",
+      "name": "AR Dash",
+      "description": "A comprehensive project management, advertising and invoicing system for accurate repairs LLM my mobile home repair business.",
+      "stack": "TypeScript",
+      "directory": "/Volumes/4TB/Users/josephmcmyne/myProjects/management",
+      "restartCommand": "npm run dev",
+      "logCommand": "npm run logs",
+      "isActive": false,
+      "createdAt": "2025-05-23T15:20:55.960Z",
+      "updatedAt": "2025-05-23T15:20:55.960Z",
+      "variableDefinitions": null,
+      "variableValues": null,
+      "customVariables": null
+    }
+  ],
+  "activeProjectId": null
+}

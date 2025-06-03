@@ -1,0 +1,31 @@
+# Generated global variables for project: Replacements
+global_vars:
+  - name: project_name
+    type: echo
+    params:
+      echo: "Replacements"
+  
+  - name: project_description
+    type: echo
+    params:
+      echo: "This app"
+  
+  - name: project_stack
+    type: echo
+    params:
+      echo: "SwiftUI"
+  
+  - name: project_directory
+    type: echo
+    params:
+      echo: "/Volumes/4TB/Users/josephmcmyne/myProjects/xcode/BetterReplacementsManager"
+  
+  - name: project_restart_command
+    type: echo
+    params:
+      echo: "xcodebuild"
+  
+  - name: project_log_command
+    type: echo
+    params:
+      echo: "log stream --predicate 'processImagePath contains \"YourApp\"' --info"
