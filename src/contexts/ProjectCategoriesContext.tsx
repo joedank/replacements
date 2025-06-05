@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { message } from 'antd';
+import { invoke } from '@tauri-apps/api/core';
 import { ProjectCategory, DEFAULT_PROJECT_CATEGORIES } from '../types/projectCategories';
-import { safeInvoke } from '../utils/tauriMock';
 
 interface ProjectCategoriesContextType {
   categories: ProjectCategory[];
@@ -35,9 +35,9 @@ export const ProjectCategoriesProvider: React.FC<{ children: React.ReactNode }> 
     setLoading(true);
     try {
       // First ensure all categories have fileName fields and YAML files
-      await safeInvoke('ensure_project_categories_have_filenames');
+      await invoke('ensure_project_categories_have_filenames');
       
-      const data = await safeInvoke('read_project_categories') as ProjectCategoriesData;
+      const data = await invoke<ProjectCategoriesData>('read_project_categories');
       // Normalize categories to ensure variableDefinitions exists
       const normalizedCategories = data.categories.map(c => ({
         ...c,
@@ -63,7 +63,7 @@ export const ProjectCategoriesProvider: React.FC<{ children: React.ReactNode }> 
 
   const saveCategories = async (newCategories: ProjectCategory[]) => {
     try {
-      await safeInvoke('write_project_categories', {
+      await invoke('write_project_categories', {
         data: {
           categories: newCategories,
           lastUpdated: new Date().toISOString(),
