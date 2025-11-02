@@ -16,6 +16,10 @@
   --color-text-secondary: #6b7280;
   --color-text-muted: #9ca3af;
   
+  /* Surface Colors */
+  --color-surface-primary: #f9fafb;
+  --color-surface-secondary: #f3f4f6;
+  
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -69,6 +73,8 @@
     --color-text-primary: #f9fafb;
     --color-text-secondary: #d1d5db;
     --color-text-muted: #9ca3af;
+    --color-surface-primary: #1f2937;
+    --color-surface-secondary: #374151;
   }
 }
 
@@ -81,4 +87,6 @@ html.dark {
   --color-text-primary: #f9fafb;
   --color-text-secondary: #d1d5db;
   --color-text-muted: #9ca3af;
+  --color-surface-primary: #1f2937;
+  --color-surface-secondary: #374151;
 }

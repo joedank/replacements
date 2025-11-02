@@ -416,14 +416,35 @@ global_vars:"#, escape_yaml_value(&project.name));
                         if let Some(value) = variable_values.get(&variable_def.id) {
                             // Only include variables that have values set
                             if !value.trim().is_empty() {
-                                yaml_content.push_str(&format!(r#"
+                                let escaped_value = escape_yaml_value(value);
+                                // Check if the value is a multi-line string starting with |
+                                if escaped_value.starts_with('|') {
+                                    // For multi-line strings, we need to adjust the indentation
+                                    // The escape_yaml_value already adds 2 spaces, but we need 8 total for proper YAML structure
+                                    let lines: Vec<&str> = escaped_value.lines().collect();
+                                    yaml_content.push_str(&format!(r#"
   - name: {}
     type: echo
     params:
       echo: {}"#, 
-                                    variable_def.name, 
-                                    escape_yaml_value(value)
-                                ));
+                                        variable_def.name, 
+                                        lines[0]  // This is the "|" character
+                                    ));
+                                    // Add the remaining lines with proper indentation (8 spaces total)
+                                    for line in lines.iter().skip(1) {
+                                        yaml_content.push_str(&format!("\n      {}", line));
+                                    }
+                                } else {
+                                    // For single-line strings, use the original format
+                                    yaml_content.push_str(&format!(r#"
+  - name: {}
+    type: echo
+    params:
+      echo: {}"#, 
+                                        variable_def.name, 
+                                        escaped_value
+                                    ));
+                                }
                             }
                         }
                     }
@@ -433,6 +454,10 @@ global_vars:"#, escape_yaml_value(&project.name));
     }
     
     yaml_content.push_str("\n");
+    
+    // Validate YAML before writing
+    serde_yaml::from_str::<serde_yaml::Value>(&yaml_content)
+        .map_err(|e| format!("Generated invalid YAML: {}", e))?;
     
     // Use atomic write for safety
     atomic_write(&espanso_path, &yaml_content)

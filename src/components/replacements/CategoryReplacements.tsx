@@ -680,43 +680,48 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
         }}
       >
         <div style={{ marginBottom: 24 }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <Title level={4} style={{ margin: 0 }}>{category.name} Replacements</Title>
+          <Space direction="vertical" style={{ width: '100%' }} size="large">
+            {/* Title Section with File Info */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <Title level={3} style={{ margin: 0 }}>{category.name} Replacements</Title>
                 {category.description && (
-                  <Text type="secondary">{category.description}</Text>
+                  <Text type="secondary" style={{ display: 'block', marginTop: '4px' }}>
+                    {category.description}
+                  </Text>
                 )}
               </div>
-              <Space>
-                <Search
-                  placeholder="Search replacements..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  style={{ width: 300 }}
-                  allowClear
-                />
-                <Button 
-                  icon={<ImportOutlined />} 
-                  onClick={handleOpenImportModal}
-                >
-                  Import
-                </Button>
-                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateNew}>
-                  New Replacement
-                </Button>
-              </Space>
+              <div style={{ textAlign: 'right' }}>
+                <Space>
+                  <Text code type="secondary">{category.fileName}</Text>
+                  <Badge count={replacements.length} showZero style={{ backgroundColor: '#52c41a' }} />
+                </Space>
+              </div>
             </div>
-            <div>
-              <Text type="secondary">
-                File: <Text code>{category.fileName}</Text> • 
-                Total: <Badge count={replacements.length} showZero style={{ backgroundColor: '#52c41a' }} />
-              </Text>
+            
+            {/* Controls Section - Full Width */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <Search
+                placeholder="Search replacements..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ flex: 1 }}
+                allowClear
+              />
+              <Button 
+                icon={<ImportOutlined />} 
+                onClick={handleOpenImportModal}
+              >
+                Import
+              </Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateNew}>
+                New Replacement
+              </Button>
             </div>
           </Space>
         </div>
 
-        {filteredReplacements.length === 0 ? (
+        {filteredReplacements.length === 0 && !isNewReplacement ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
@@ -737,55 +742,57 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
             overflow: 'hidden',
             minHeight: 0
           }}>
-            <div 
-              className="horizontal-scrollbar"
-              style={{ 
-                padding: '8px 0 16px 0',
-                marginBottom: '24px',
-                borderBottom: '1px solid #f0f0f0',
-                flexShrink: 0,
-                maxHeight: '60px'
-              }}
-            >
-              <Flex gap={8} style={{ minWidth: 'max-content' }}>
-                {filteredReplacements.map((replacement, index) => (
-                  <Tag.CheckableTag
-                    key={`${replacement.trigger}-${index}`}
-                    checked={selectedIndex === index}
-                    onChange={() => handleSelectReplacement(index)}
-                    style={{
-                      padding: '4px 12px',
-                      fontSize: '14px',
-                      fontFamily: 'monospace',
-                      whiteSpace: 'nowrap',
-                      cursor: 'pointer',
-                      borderRadius: '6px',
-                    }}
-                  >
-                    <Space size={4}>
-                      <span>{replacement.trigger}</span>
-                      <Dropdown
-                        menu={{ items: getDropdownItems(replacement) }}
-                        trigger={['click']}
-                      >
-                        <Button 
-                          type="text" 
-                          size="small" 
-                          icon={<MoreOutlined />}
-                          style={{ 
-                            padding: 0, 
-                            width: '16px', 
-                            height: '16px',
-                            minWidth: 'unset'
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </Dropdown>
-                    </Space>
-                  </Tag.CheckableTag>
-                ))}
-              </Flex>
-            </div>
+            {filteredReplacements.length > 0 && (
+              <div 
+                className="horizontal-scrollbar"
+                style={{ 
+                  padding: '8px 0 16px 0',
+                  marginBottom: '24px',
+                  borderBottom: '1px solid #f0f0f0',
+                  flexShrink: 0,
+                  maxHeight: '60px'
+                }}
+              >
+                <Flex gap={8} style={{ minWidth: 'max-content' }}>
+                  {filteredReplacements.map((replacement, index) => (
+                    <Tag.CheckableTag
+                      key={`${replacement.trigger}-${index}`}
+                      checked={selectedIndex === index}
+                      onChange={() => handleSelectReplacement(index)}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '14px',
+                        fontFamily: 'monospace',
+                        whiteSpace: 'nowrap',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      <Space size={4}>
+                        <span>{replacement.trigger}</span>
+                        <Dropdown
+                          menu={{ items: getDropdownItems(replacement) }}
+                          trigger={['click']}
+                        >
+                          <Button 
+                            type="text" 
+                            size="small" 
+                            icon={<MoreOutlined />}
+                            style={{ 
+                              padding: 0, 
+                              width: '16px', 
+                              height: '16px',
+                              minWidth: 'unset'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </Dropdown>
+                      </Space>
+                    </Tag.CheckableTag>
+                  ))}
+                </Flex>
+              </div>
+            )}
 
             <div 
               className="custom-scrollbar"
@@ -832,14 +839,48 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                     </Button>
                   </Space>
                 </div>
-                <TextArea
-                  ref={textAreaRef}
-                  value={editingReplace}
-                  onChange={(e) => setEditingReplace(e.target.value)}
-                  placeholder="Enter replacement text"
-                  style={{ minHeight: '120px' }}
-                  autoSize={{ minRows: 4, maxRows: 10 }}
-                />
+                <div
+                  className="replacement-text-container"
+                  style={{ position: 'relative' }}
+                  onMouseEnter={(e) => {
+                    const btn = e.currentTarget.querySelector('.copy-button') as HTMLElement;
+                    if (btn) btn.style.opacity = '1';
+                  }}
+                  onMouseLeave={(e) => {
+                    const btn = e.currentTarget.querySelector('.copy-button') as HTMLElement;
+                    if (btn) btn.style.opacity = '0';
+                  }}
+                >
+                  <TextArea
+                    ref={textAreaRef}
+                    value={editingReplace}
+                    onChange={(e) => setEditingReplace(e.target.value)}
+                    placeholder="Enter replacement text"
+                    style={{ minHeight: '120px' }}
+                    autoSize={{ minRows: 4, maxRows: 10 }}
+                  />
+                  <Button
+                    className="copy-button"
+                    type="text"
+                    size="small"
+                    icon={<CopyOutlined />}
+                    onClick={() => {
+                      navigator.clipboard.writeText(editingReplace);
+                      message.success('Replacement text copied to clipboard');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      bottom: '8px',
+                      right: '8px',
+                      opacity: '0',
+                      transition: 'opacity 0.2s ease',
+                      backgroundColor: 'var(--color-surface-primary)',
+                      border: '1px solid var(--color-border)',
+                      zIndex: 1,
+                    }}
+                    title="Copy replacement text"
+                  />
+                </div>
               </div>
 
               <div>
@@ -895,7 +936,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
                         fontFamily: 'monospace',
                         fontSize: '14px',
                         lineHeight: '1.6',
-                        color: 'rgba(0, 0, 0, 0.88)',
+                        color: 'var(--color-text-primary)',
                         padding: '8px',
                         backgroundColor: 'var(--color-surface-primary)',
                         borderRadius: '4px',
@@ -963,18 +1004,52 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
           
           <div>
             <Text strong style={{ display: 'block', marginBottom: '8px' }}>Replacement Text:</Text>
-            <TextArea
-              ref={modalTextAreaRef}
-              value={modalReplaceText}
-              onChange={(e) => setModalReplaceText(e.target.value)}
-              placeholder="Enter replacement text"
-              autoSize={{ minRows: 15, maxRows: 30 }}
-              style={{ 
-                fontFamily: 'monospace',
-                fontSize: '14px',
-                lineHeight: '1.6'
+            <div
+              className="replacement-text-container"
+              style={{ position: 'relative' }}
+              onMouseEnter={(e) => {
+                const btn = e.currentTarget.querySelector('.copy-button') as HTMLElement;
+                if (btn) btn.style.opacity = '1';
               }}
-            />
+              onMouseLeave={(e) => {
+                const btn = e.currentTarget.querySelector('.copy-button') as HTMLElement;
+                if (btn) btn.style.opacity = '0';
+              }}
+            >
+              <TextArea
+                ref={modalTextAreaRef}
+                value={modalReplaceText}
+                onChange={(e) => setModalReplaceText(e.target.value)}
+                placeholder="Enter replacement text"
+                autoSize={{ minRows: 15, maxRows: 30 }}
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: '14px',
+                  lineHeight: '1.6'
+                }}
+              />
+              <Button
+                className="copy-button"
+                type="text"
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={() => {
+                  navigator.clipboard.writeText(modalReplaceText);
+                  message.success('Replacement text copied to clipboard');
+                }}
+                style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  right: '8px',
+                  opacity: '0',
+                  transition: 'opacity 0.2s ease',
+                  backgroundColor: 'var(--color-surface-primary)',
+                  border: '1px solid var(--color-border)',
+                  zIndex: 1,
+                }}
+                title="Copy replacement text"
+              />
+            </div>
           </div>
           
           {showPreview && (

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Input, 
   Menu,
@@ -15,11 +15,11 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PlusOutlined,
-  StarFilled,
   SettingOutlined,
   CalendarOutlined,
   UserOutlined,
   ApiOutlined,
+  ProjectOutlined,
 } from '@ant-design/icons';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useVariables } from '../../contexts/VariablesContext';
@@ -45,11 +45,10 @@ interface InsertionHubProps {
 export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('system');
+  const [selectedCategory, setSelectedCategory] = useState('project');
   const [showBuilder, setShowBuilder] = useState(false);
   const [builderType, setBuilderType] = useState<ExtensionType>('date');
   const [showExtensionsManager, setShowExtensionsManager] = useState(false);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   
   const { activeProject } = useProjects();
   const { categories: customVarCategories } = useVariables();
@@ -60,25 +59,6 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
     token: { colorBgContainer, colorBorder },
   } = theme.useToken();
 
-  // Load favorites from localStorage
-  useEffect(() => {
-    const savedFavorites = localStorage.getItem('insertionHub_favorites');
-    if (savedFavorites) {
-      setFavorites(new Set(JSON.parse(savedFavorites)));
-    }
-  }, []);
-
-  // Save favorites to localStorage
-  const toggleFavorite = (key: string) => {
-    const newFavorites = new Set(favorites);
-    if (newFavorites.has(key)) {
-      newFavorites.delete(key);
-    } else {
-      newFavorites.add(key);
-    }
-    setFavorites(newFavorites);
-    localStorage.setItem('insertionHub_favorites', JSON.stringify(Array.from(newFavorites)));
-  };
 
   // Build all insertion items
   const allItems = useMemo((): InsertionItem[] => {
@@ -159,7 +139,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
       },
     );
 
-    // Project-aware variables (in system category)
+    // Project-aware variables (in project category)
     if (activeProject && activeProject.categoryId && activeProject.categoryValues && projectCategories) {
       // Only include variables from the project's category
       const projectCategory = projectCategories.find(cat => cat.id === activeProject.categoryId);
@@ -170,11 +150,12 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
           if (value) {
             items.push({
               key: `project-cat-${projectCategory.id}-${varDef.id}`,
-              label: varDef.description || varDef.name,
+              label: varDef.name,
               value: `{{${varDef.name}}}`,
-              category: 'system',
+              category: 'project',
               icon: 'ProjectOutlined',
               preview: () => value || 'Not set',
+              description: varDef.description, // Add description for tooltip
             });
           }
         });
@@ -262,23 +243,12 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
       });
     });
 
-    // Mark favorites
-    return items.map(item => ({
-      ...item,
-      isFavorite: favorites.has(item.key),
-    }));
-  }, [activeProject, customVarCategories, savedExtensions, favorites]);
+    return items;
+  }, [activeProject, customVarCategories, savedExtensions, projectCategories]);
 
   // Filter items by category and search
   const filteredItems = useMemo(() => {
-    let items = allItems;
-
-    // Filter by category
-    if (selectedCategory === 'favorites') {
-      items = items.filter(item => item.isFavorite);
-    } else {
-      items = items.filter(item => item.category === selectedCategory);
-    }
+    let items = allItems.filter(item => item.category === selectedCategory);
 
     // Filter by search
     if (searchValue) {
@@ -300,12 +270,10 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
     // Count items per category
     allItems.forEach(item => {
       counts[item.category] = (counts[item.category] || 0) + 1;
-      if (item.isFavorite) {
-        counts['favorites'] = (counts['favorites'] || 0) + 1;
-      }
     });
 
-    return INSERTION_CATEGORIES.map(cat => ({
+    // Remove favorites category since we removed favorites functionality
+    return INSERTION_CATEGORIES.filter(cat => cat.key !== 'favorites').map(cat => ({
       ...cat,
       count: counts[cat.key] || 0,
     }));
@@ -325,7 +293,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
 
   const menuItems = categoriesWithCounts.map(cat => ({
     key: cat.key,
-    icon: cat.icon === 'StarFilled' ? <StarFilled /> :
+    icon: cat.icon === 'ProjectOutlined' ? <ProjectOutlined /> :
           cat.icon === 'SettingOutlined' ? <SettingOutlined /> :
           cat.icon === 'CalendarOutlined' ? <CalendarOutlined /> :
           cat.icon === 'UserOutlined' ? <UserOutlined /> :
@@ -423,7 +391,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
             <Divider style={{ margin: '0 16px', minWidth: 'auto', width: 'auto', flexShrink: 0 }} />
 
             {/* No Active Project Alert */}
-            {!activeProject && selectedCategory === 'system' && (
+            {!activeProject && selectedCategory === 'project' && (
               <Alert
                 message="No Active Project"
                 description="Select a project to enable project variables"
@@ -438,11 +406,7 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
             <div style={{ flex: 1, overflow: 'auto', padding: '8px 16px 16px', minHeight: 0 }}>
               {filteredItems.length === 0 ? (
                 <Empty 
-                  description={
-                    selectedCategory === 'favorites' 
-                      ? "No favorites yet. Star items to add them here."
-                      : "No items found"
-                  }
+                  description="No items found"
                   style={{ marginTop: 48 }}
                 />
               ) : (
@@ -452,7 +416,6 @@ export const InsertionHub: React.FC<InsertionHubProps> = ({ onInsert }) => {
                     item={item}
                     onInsert={onInsert}
                     onOpenBuilder={handleOpenBuilder}
-                    onToggleFavorite={toggleFavorite}
                   />
                 ))
               )}

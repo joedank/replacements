@@ -5,6 +5,8 @@ target/
 # Build artifacts
 dist/
 BetterReplacementsManager.app
+BRM.app
+BRMdebug.app
 *.dmg
 
 # Development
@@ -14,6 +16,9 @@ BetterReplacementsManager.app
 .env.development.local
 .env.test.local
 .env.production.local
+.mcp.json
+.mcp.json.backup
+.claude/settings.local.json
 
 # Logs
 npm-debug.log*

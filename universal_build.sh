@@ -43,8 +43,8 @@ npm run typecheck
 # Build the app
 echo "Building Tauri app..."
 if [[ -n "$DEBUG_FLAG" ]]; then
-    # For debug builds, build without --release flag and set env var
-    VITE_DEBUG_BUILD=true npm run tauri build
+    # For debug builds, use --debug flag
+    VITE_DEBUG_BUILD=true npm run tauri build -- --debug
 else
     # For release builds
     npm run tauri build $BUILD_TYPE
@@ -54,7 +54,11 @@ echo "Build complete!"
 
 # Define source and destination paths
 SOURCE_APP="src-tauri/target/$BUILD_MODE/bundle/macos/BetterReplacementsManager.app"
-DEST_APP="BetterReplacementsManager.app"
+if [[ -n "$DEBUG_FLAG" ]]; then
+    DEST_APP="BRMdebug.app"
+else
+    DEST_APP="BRM.app"
+fi
 
 # Move .app to project root
 if [ -d "$SOURCE_APP" ]; then

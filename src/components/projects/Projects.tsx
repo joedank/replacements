@@ -40,6 +40,7 @@ export const Projects: React.FC = () => {
   const {
     filteredProjects,
     activeProject,
+    selectedCategoryId: filterCategoryId,
     loading,
     createProject,
     updateProject,
@@ -208,8 +209,16 @@ export const Projects: React.FC = () => {
       className="custom-scrollbar"
     >
       <Card>
+        
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Title level={4} style={{ margin: 0 }}>Projects</Title>
+          <div>
+            <Title level={4} style={{ margin: 0 }}>Projects</Title>
+            {filterCategoryId && (
+              <Text type="secondary" style={{ fontSize: 14 }}>
+                Showing: {categories.find(c => c.id === filterCategoryId)?.name || 'Unknown category'}
+              </Text>
+            )}
+          </div>
           <Space>
             <Input
               placeholder="Search projects..."
@@ -225,23 +234,40 @@ export const Projects: React.FC = () => {
         </div>
 
         {searchFilteredProjects.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <Space direction="vertical" align="center">
-                <Text>{searchText ? 'No projects found' : 'No projects yet'}</Text>
-                <Text type="secondary">
-                  {searchText ? 'Try a different search term' : 'Create your first project to get started'}
-                </Text>
-              </Space>
-            }
-          >
-            {!searchText && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-                Create Project
-              </Button>
-            )}
-          </Empty>
+          <div>
+            
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <Space direction="vertical" align="center" size="small">
+                  {searchText ? (
+                    <>
+                      <Text>No projects found for "{searchText}"</Text>
+                      <Text type="secondary">Try a different search term</Text>
+                    </>
+                  ) : filterCategoryId ? (
+                    <>
+                      <Text>No projects in {categories.find(c => c.id === filterCategoryId)?.name || 'selected category'}</Text>
+                      <Text type="secondary">
+                        Create a new project or select "All categories" in the header filter
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text>No projects yet</Text>
+                      <Text type="secondary">Create your first project to get started</Text>
+                    </>
+                  )}
+                </Space>
+              }
+            >
+              {!searchText && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                  Create Project
+                </Button>
+              )}
+            </Empty>
+          </div>
         ) : (
           <List
             itemLayout="vertical"
@@ -261,7 +287,7 @@ export const Projects: React.FC = () => {
                   )
                 }
               >
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative', paddingRight: 40 }}>
                   <List.Item.Meta
                     title={
                       <Space size="middle">
@@ -320,8 +346,8 @@ export const Projects: React.FC = () => {
                       icon={<MoreOutlined />} 
                       style={{ 
                         position: 'absolute', 
-                        bottom: 0, 
-                        right: 0 
+                        top: 8, 
+                        right: 8 
                       }}
                     />
                   </Dropdown>

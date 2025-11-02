@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { homeDir } from '@tauri-apps/api/path';
 
 export interface Replacement {
   trigger: string;
@@ -43,11 +44,6 @@ export const useReplacements = () => {
   return context;
 };
 
-const FILE_PATHS = {
-  global: '/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/better_replacements.yml',
-  base: '/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/base.yml',
-  ai: '/Volumes/4TB/Users/josephmcmyne/Library/Application Support/espanso/match/ai_prompts.yml',
-};
 
 export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [globalReplacements, setGlobalReplacements] = useState<Replacement[]>([]);
@@ -60,56 +56,43 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const loadReplacements = useCallback(async () => {
     setLoading(true);
     try {
+      const homeDirPath = await homeDir();
+      const espansoPath = `${homeDirPath}/Library/Application Support/espanso/match`;
+      
       // Load Global replacements
       try {
+        const globalPath = `${espansoPath}/better_replacements.yml`;
         const global = await invoke<Replacement[]>('read_espanso_file', {
-          filePath: FILE_PATHS.global
+          filePath: globalPath
         });
         setGlobalReplacements(global);
       } catch (error) {
         console.error('Failed to load global replacements:', error);
-        // Use mock data for development
-        setGlobalReplacements([
-          { trigger: '#end', replace: 'Best regards,\\nJoseph', source: FILE_PATHS.global },
-          { trigger: '/tar', replace: 'tar -czf archive.tar.gz', source: FILE_PATHS.global },
-          { trigger: '#proj', replace: 'Project: ', source: FILE_PATHS.global },
-          { trigger: '#mem', replace: 'Memory Bank Update', source: FILE_PATHS.global },
-          { trigger: '#context', replace: 'Context: ', source: FILE_PATHS.global },
-        ]);
+        setGlobalReplacements([]);
       }
 
       // Load Base replacements
       try {
+        const basePath = `${espansoPath}/base.yml`;
         const base = await invoke<Replacement[]>('read_espanso_file', {
-          filePath: FILE_PATHS.base
+          filePath: basePath
         });
         setBaseReplacements(base);
       } catch (error) {
         console.error('Failed to load base replacements:', error);
-        // Use mock data for development
-        setBaseReplacements([
-          { trigger: ':espanso', replace: 'Espanso - Text Expander', source: FILE_PATHS.base },
-          { trigger: ':date', replace: '{{date}}', source: FILE_PATHS.base },
-          { trigger: ':time', replace: '{{time}}', source: FILE_PATHS.base },
-          { trigger: ':now', replace: '{{date}} {{time}}', source: FILE_PATHS.base },
-        ]);
+        setBaseReplacements([]);
       }
 
       // Load AI replacements
       try {
+        const aiPath = `${espansoPath}/ai_prompts.yml`;
         const ai = await invoke<Replacement[]>('read_espanso_file', {
-          filePath: FILE_PATHS.ai
+          filePath: aiPath
         });
         setAiReplacements(ai);
       } catch (error) {
         console.error('Failed to load AI replacements:', error);
-        // Use mock data for development
-        setAiReplacements([
-          { trigger: ':debug-help', replace: 'Help me debug this code:\\n\\n```\\n$|$\\n```', source: FILE_PATHS.ai },
-          { trigger: ':code-review', replace: 'Please review this code for best practices:\\n\\n```\\n$|$\\n```', source: FILE_PATHS.ai },
-          { trigger: ':explain', replace: 'Can you explain how this works?\\n\\n$|$', source: FILE_PATHS.ai },
-          { trigger: ':refactor', replace: 'Please refactor this code to be more efficient:\\n\\n```\\n$|$\\n```', source: FILE_PATHS.ai },
-        ]);
+        setAiReplacements([]);
       }
     } finally {
       setLoading(false);

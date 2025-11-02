@@ -13,6 +13,7 @@ export interface InsertionItem {
   builderType?: string; // For builder actions, specify which builder to open
   quickSettings?: boolean; // For date/time variables that support quick settings
   isFavorite?: boolean;
+  description?: string; // Optional description for tooltip
 }
 
 export interface InsertionCategory {
@@ -24,10 +25,11 @@ export interface InsertionCategory {
 
 export const INSERTION_CATEGORIES: InsertionCategory[] = [
   { key: 'favorites', label: 'Favorites', icon: 'StarFilled', order: 0 },
-  { key: 'system', label: 'System', icon: 'SettingOutlined', order: 1 },
-  { key: 'datetime', label: 'Date & Time', icon: 'CalendarOutlined', order: 2 },
-  { key: 'custom', label: 'Custom', icon: 'UserOutlined', order: 3 },
-  { key: 'extensions', label: 'Extensions', icon: 'ApiOutlined', order: 4 },
+  { key: 'project', label: 'Project', icon: 'ProjectOutlined', order: 1 },
+  { key: 'system', label: 'System', icon: 'SettingOutlined', order: 2 },
+  { key: 'datetime', label: 'Date & Time', icon: 'CalendarOutlined', order: 3 },
+  { key: 'custom', label: 'Custom', icon: 'UserOutlined', order: 4 },
+  { key: 'extensions', label: 'Extensions', icon: 'ApiOutlined', order: 5 },
 ];
 
 // Helper function to format date preview
