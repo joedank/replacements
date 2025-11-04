@@ -4,10 +4,12 @@ import { MainLayout } from './components/layout';
 import { ReplacementProvider, useReplacements } from './contexts/ReplacementContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { PathProvider } from './contexts/PathContext';
 import { VariablesProvider } from './contexts/VariablesContext';
 import { SavedExtensionsProvider } from './contexts/SavedExtensionsContext';
 import { LLMProvider } from './contexts/LLMContext';
 import { ProjectCategoriesProvider } from './contexts/ProjectCategoriesContext';
+import { CategoriesProvider } from './contexts/CategoriesContext';
 
 // Lazy load components to split them into separate chunks
 const Dashboard = lazy(() => import('./components/dashboard').then(m => ({ default: m.Dashboard })));
@@ -163,28 +165,32 @@ function ThemedApp() {
     >
       {messageContextHolder}
       {modalContextHolder}
-      <ReplacementProvider>
-        <ProjectProvider>
-          <ProjectCategoriesProvider>
-            <VariablesProvider>
-              <SavedExtensionsProvider>
-                <LLMProvider>
-                  <AppContent />
-                </LLMProvider>
-              </SavedExtensionsProvider>
-            </VariablesProvider>
-          </ProjectCategoriesProvider>
-        </ProjectProvider>
-      </ReplacementProvider>
+      <CategoriesProvider>
+        <ReplacementProvider>
+          <ProjectProvider>
+            <ProjectCategoriesProvider>
+              <VariablesProvider>
+                <SavedExtensionsProvider>
+                  <LLMProvider>
+                    <AppContent />
+                  </LLMProvider>
+                </SavedExtensionsProvider>
+              </VariablesProvider>
+            </ProjectCategoriesProvider>
+          </ProjectProvider>
+        </ReplacementProvider>
+      </CategoriesProvider>
     </ConfigProvider>
   );
 }
 
 function App() {
   return (
-    <ThemeProvider>
-      <ThemedApp />
-    </ThemeProvider>
+    <PathProvider>
+      <ThemeProvider>
+        <ThemedApp />
+      </ThemeProvider>
+    </PathProvider>
   );
 }
 

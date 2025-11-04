@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "Context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "env": {
+        "CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY_HERE"
+      },
+      "description": "Up-to-date library documentation for Tauri, React, TypeScript, and more"
+    },
+    "Ant-Design-Components": {
+      "command": "npx",
+      "args": ["-y", "mcp-antd-components"],
+      "description": "Ant Design component library explorer with docs and examples"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Volumes/4TB/Users/josephmcmyne/myProjects/BRM"
+      ],
+      "description": "Direct file system operations for the BRM project"
+    }
+  }
+}

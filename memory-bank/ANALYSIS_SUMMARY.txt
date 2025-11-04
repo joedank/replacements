@@ -1,0 +1,302 @@
+================================================================================
+CATEGORY RELATIONSHIP ANALYSIS - EXECUTIVE SUMMARY
+================================================================================
+
+PROJECT: Better Replacements Manager (BRM)
+INVESTIGATOR: Claude Code
+DATE: November 2, 2025
+
+================================================================================
+THE PROBLEM
+================================================================================
+
+The current BRM project is MISSING a crucial feature found in the old 
+implementation (https://github.com/joedank/replacements):
+
+    THE ABILITY TO FILTER AND ORGANIZE PROJECTS BY CATEGORY
+
+In the old implementation, there's a dropdown in the header showing "Development"
+that filters which projects are displayed. This feature is completely absent 
+from the current version.
+
+================================================================================
+THE ARCHITECTURE (Old Implementation)
+================================================================================
+
+THREE-TIER HIERARCHY:
+
+1. PROJECT CATEGORIES (Desktop App Configuration)
+   - Define variable templates for different project types
+   - Examples: "Base Replacements", "Development", "AI Prompts"
+   - Stored in: ~/Library/Application Support/BetterReplacementsManager/
+                project_categories.json
+
+2. PROJECTS (User's Individual Projects)
+   - Each project belongs to EXACTLY ONE project category
+   - Store: categoryId field linking to ProjectCategory.id
+   - Store: categoryValues with nested structure
+   - Stored in: ~/Library/Application Support/BetterReplacementsManager/
+               projects.json
+
+3. REPLACEMENT CATEGORIES (YAML Files - Static)
+   - Not filtered by project category
+   - Same for all projects: base.yml, ai_prompts.yml, global.yml, etc.
+   - Stored in: ~/Library/Application Support/espanso/match/*.yml
+
+THE RELATIONSHIP:
+    ProjectCategory.id ← Project.categoryId (many-to-one)
+    
+    "Development" category can have:
+    ├── "My React App" (categoryId: "development")
+    ├── "Python CLI" (categoryId: "development")
+    └── "TypeScript Lib" (categoryId: "development")
+
+================================================================================
+KEY MISSING COMPONENTS IN CURRENT BRM
+================================================================================
+
+1. PROJECT.CATEGORYID FIELD
+   Status: MISSING
+   Impact: CRITICAL
+   
+   Every project should link to a project category:
+   {
+     id: "proj_123",
+     name: "My React App",
+     categoryId: "development",  ← THIS IS MISSING
+     categoryValues: {...}
+   }
+
+2. CATEGORY DROPDOWN IN MAINLAYOUT
+   Status: MISSING
+   Impact: CRITICAL
+   
+   Header should have:
+   [All categories ▼] [Select project ▼]
+   Currently only has the project dropdown.
+
+3. FILTERING LOGIC IN PROJECTCONTEXT
+   Status: PARTIALLY EXISTS
+   Impact: HIGH
+   
+   Should filter projects when category selected:
+   filteredProjects = selectedCategoryId 
+     ? projects.filter(p => p.categoryId === selectedCategoryId)
+     : projects;
+
+================================================================================
+DATA STRUCTURE DETAILS
+================================================================================
+
+PROJECT CATEGORY (project_categories.json):
+{
+  "id": "development",
+  "name": "Development",
+  "description": "Development-related variables",
+  "icon": "CodeOutlined",
+  "color": "#52c41a",
+  "isDefault": true,
+  "fileName": "project_development.yml",
+  "variableDefinitions": [
+    { "id": "tech_stack", "name": "tech_stack" },
+    { "id": "directory", "name": "directory" },
+    { "id": "restart_command", "name": "restart_command" },
+    { "id": "log_command", "name": "log_command" }
+  ]
+}
+
+PROJECT (projects.json):
+{
+  "id": "proj_456",
+  "name": "My React App",
+  "categoryId": "development",  ← LINKS TO CATEGORY
+  "categoryValues": {
+    "general": {
+      "project_name": "My React App",
+      "project_description": "Web app"
+    },
+    "development": {
+      "tech_stack": "React + TypeScript",
+      "directory": "/Users/joe/react",
+      "restart_command": "npm run dev",
+      "log_command": "npm run logs"
+    }
+  }
+}
+
+================================================================================
+USER WORKFLOW (Old Implementation)
+================================================================================
+
+1. User opens app → All project categories shown in dropdown
+2. User selects "Development" → Category dropdown now shows "Development"
+3. ProjectContext filters projects where categoryId === "development"
+4. Project dropdown updates to show ONLY development projects
+5. User selects "My React App"
+6. Variables from "development" category load
+7. User can insert {{tech_stack}}, {{directory}}, etc.
+
+If user switches to "AI Prompts" category:
+- Project dropdown updates to show only AI Prompts projects
+- Active project clears if it wasn't in new category
+- New variables available based on AI Prompts category
+
+================================================================================
+CURRENT STATE (BROKEN)
+================================================================================
+
+Project.ts MISSING:
+    interface Project {
+      id: string;
+      name: string;
+      categoryId: string;  ← MISSING THIS
+      // ...
+    }
+
+MainLayout.tsx MISSING:
+    Category dropdown - no way to filter projects
+
+ProjectContext.tsx MISSING:
+    - selectedCategoryId state
+    - setSelectedCategory() function
+    - filteredProjects logic
+    - Context exports
+
+Result: All projects shown always, no category organization
+
+================================================================================
+IMPLEMENTATION ROADMAP
+================================================================================
+
+PHASE 1 - DATA MODEL (CRITICAL)
+  [ ] Add categoryId to Project interface (src/types/project.ts)
+  [ ] Verify Rust backend has categoryId (src-tauri/src/lib.rs)
+  [ ] Create migration for existing projects (default to "general")
+
+PHASE 2 - CONTEXT & LOGIC (HIGH)
+  [ ] Update ProjectContext.tsx:
+      - Add selectedCategoryId state
+      - Add setSelectedCategory() function
+      - Add filteredProjects computed value
+      - Export all three in context value
+  [ ] Update ProjectContext interface to include new properties
+  [ ] Update project creation to assign categoryId
+
+PHASE 3 - UI (CRITICAL)
+  [ ] Add category dropdown to MainLayout header
+  [ ] Place BEFORE project dropdown
+  [ ] Connect to ProjectContext.setSelectedCategory()
+  [ ] Show filtered projects in project dropdown
+
+PHASE 4 - TESTING (MEDIUM)
+  [ ] Test category filtering on macOS
+  [ ] Test cross-compile to Windows
+  [ ] Test migration of existing data
+  [ ] Test all filtering scenarios
+  [ ] Test variable insertion with filtered projects
+
+================================================================================
+FILES TO MODIFY
+================================================================================
+
+1. src/types/project.ts
+   → Add categoryId: string field
+
+2. src/contexts/ProjectContext.tsx
+   → Add selectedCategoryId state
+   → Add setSelectedCategory() function
+   → Add filteredProjects computed value
+   → Update context interface
+   → Export new properties
+
+3. src/components/layout/MainLayout.tsx
+   → Import selectedCategoryId, setSelectedCategory from ProjectContext
+   → Add category dropdown Select component
+   → Connect to project dropdown filtering
+
+4. src-tauri/src/lib.rs
+   → Verify Project struct has category_id field
+   → Verify serialization with #[serde(rename = "categoryId")]
+
+5. src/components/projects/ProjectForm.tsx (or equivalent)
+   → When creating project, assign categoryId
+   → Could default to currently selected category
+
+================================================================================
+EVIDENCE FROM OLD IMPLEMENTATION
+================================================================================
+
+File: /tmp/replacements-old/src/types/project.ts
+  Line 5: categoryId: string; ← Projects have this field
+
+File: /tmp/replacements-old/src/contexts/ProjectContext.tsx
+  Line 44-46: Filtering logic implemented
+  Line 164-170: setSelectedCategory() function
+
+File: /tmp/replacements-old/src/components/layout/MainLayout.tsx
+  Line 238-260: Category dropdown in header
+  Line 262-285: Project dropdown (depends on filteredProjects)
+
+File: /tmp/replacements-old/migrate-to-categories.js
+  Line 291-295: Shows projects must have categoryId
+  Line 320: categoryId assigned during project creation
+
+================================================================================
+CRITICAL PARAMETERS
+================================================================================
+
+Frontend-Backend Parameter Naming (IMPORTANT):
+  Rust: category_id → Frontend: categoryId (auto-conversion)
+  Rust: category_values → Frontend: categoryValues
+  Rust: is_active → Frontend: isActive
+
+This is ALREADY CORRECT in the old implementation with @serde(rename)
+Just need to ensure it's used in new implementation.
+
+================================================================================
+SUMMARY
+================================================================================
+
+What's Missing: Project.categoryId field + category dropdown + filtering logic
+
+Why It Matters: 
+  - Users can't organize projects by type
+  - All projects shown regardless of context
+  - Can't have projects with different variable sets
+  - Feature was working in old implementation
+
+How to Fix:
+  1. Add categoryId to Project type
+  2. Add filtering logic to ProjectContext
+  3. Add category dropdown to MainLayout header
+  4. Migrate existing projects to have categoryId
+
+Effort: Medium (2-4 hours implementation + testing)
+Impact: High (enables project organization and variable scoping)
+Risk: Low (isolated feature, well-documented in old implementation)
+
+================================================================================
+SAVED ARTIFACTS
+================================================================================
+
+Detailed documentation saved to /Volumes/4TB/Users/josephmcmyne/myProjects/BRM/memory-bank/:
+
+1. category_relationship_analysis.md
+   - Full technical analysis
+   - Data structure details
+   - Backend implementation review
+   - Migration script analysis
+
+2. category_hierarchy_diagram.md
+   - Visual diagrams of hierarchy
+   - Data flow illustrations
+   - Storage layout diagrams
+   - Filtering logic flowchart
+
+3. implementation_checklist.md
+   - Exact code to add
+   - File-by-file changes needed
+   - Testing checklist
+   - Priority implementation order
+
+================================================================================

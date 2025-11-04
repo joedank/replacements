@@ -11,28 +11,28 @@ pub fn escape_yaml_value(value: &str) -> String {
     }
 
     // Check if value needs escaping
-    let needs_escaping = value.contains(':') ||
-        value.contains('|') ||
-        value.contains('>') ||
-        value.contains('-') ||
-        value.contains('*') ||
-        value.contains('&') ||
-        value.contains('!') ||
-        value.contains('%') ||
-        value.contains('@') ||
-        value.contains('`') ||
-        value.contains('#') ||
-        value.contains('\n') ||
-        value.contains('\t') ||
-        value.contains('"') ||
-        value.contains('\'') ||
-        value.starts_with(' ') ||
-        value.ends_with(' ') ||
-        value == "true" ||
-        value == "false" ||
-        value == "null" ||
-        value == "~" ||
-        value.parse::<f64>().is_ok(); // pure numbers
+    let needs_escaping = value.contains(':')
+        || value.contains('|')
+        || value.contains('>')
+        || value.contains('-')
+        || value.contains('*')
+        || value.contains('&')
+        || value.contains('!')
+        || value.contains('%')
+        || value.contains('@')
+        || value.contains('`')
+        || value.contains('#')
+        || value.contains('\n')
+        || value.contains('\t')
+        || value.contains('"')
+        || value.contains('\'')
+        || value.starts_with(' ')
+        || value.ends_with(' ')
+        || value == "true"
+        || value == "false"
+        || value == "null"
+        || value == "~"
+        || value.parse::<f64>().is_ok(); // pure numbers
 
     if !needs_escaping {
         return value.to_string();
@@ -41,9 +41,7 @@ pub fn escape_yaml_value(value: &str) -> String {
     // For multiline strings, use literal style
     if value.contains('\n') {
         let lines: Vec<&str> = value.split('\n').collect();
-        let indented_lines: Vec<String> = lines.iter()
-            .map(|line| format!("  {}", line))
-            .collect();
+        let indented_lines: Vec<String> = lines.iter().map(|line| format!("  {}", line)).collect();
         return format!("|\n{}", indented_lines.join("\n"));
     }
 
@@ -55,7 +53,7 @@ pub fn escape_yaml_value(value: &str) -> String {
 /// Atomically writes content to a file using a temporary file and rename
 pub fn atomic_write<P: AsRef<Path>>(path: P, content: &str) -> Result<(), String> {
     let path = path.as_ref();
-    
+
     // Ensure parent directory exists
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -77,7 +75,8 @@ pub fn atomic_write<P: AsRef<Path>>(path: P, content: &str) -> Result<(), String
     }
 
     // Atomically move temporary file to target location
-    temp_file.persist(path)
+    temp_file
+        .persist(path)
         .map_err(|e| format!("Failed to move temporary file to target: {}", e))?;
 
     Ok(())

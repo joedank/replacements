@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { homeDir } from '@tauri-apps/api/path';
+import { usePaths } from './PathContext';
 
 export interface Replacement {
   trigger: string;
@@ -52,12 +52,17 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [selectedMenuItem, setSelectedMenuItem] = useState<string>('dashboard');
   const [loading, setLoading] = useState(false);
   const [saving] = useState(false);
+  const { espansoMatchDir, isLoading: pathsLoading } = usePaths();
 
   const loadReplacements = useCallback(async () => {
+    if (!espansoMatchDir) {
+      console.error('Espanso path not loaded yet');
+      return;
+    }
+
     setLoading(true);
     try {
-      const homeDirPath = await homeDir();
-      const espansoPath = `${homeDirPath}/Library/Application Support/espanso/match`;
+      const espansoPath = espansoMatchDir;
       
       // Load Global replacements
       try {
@@ -97,8 +102,16 @@ export const ReplacementProvider: React.FC<{ children: React.ReactNode }> = ({ c
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [espansoMatchDir]);
 
+  // Auto-load replacements when paths are ready
+  // This fixes the race condition where ReplacementContext tried to load before PathContext finished
+  useEffect(() => {
+    if (!pathsLoading && espansoMatchDir) {
+      console.log('Paths ready, auto-loading replacements');
+      loadReplacements();
+    }
+  }, [pathsLoading, espansoMatchDir, loadReplacements]);
 
   const selectMenuItem = useCallback((menuItem: string) => {
     setSelectedMenuItem(menuItem);

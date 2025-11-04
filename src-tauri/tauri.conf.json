@@ -29,7 +29,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "app",
+    "targets": ["app", "nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,7 +40,12 @@
     "category": "DeveloperTool",
     "copyright": "",
     "shortDescription": "A text replacement and AI prompt template manager",
-    "longDescription": "A text replacement and AI prompt template manager that integrates with Espanso"
+    "longDescription": "A text replacement and AI prompt template manager that integrates with Espanso",
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    }
   },
   "plugins": {}
 }

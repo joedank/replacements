@@ -29,7 +29,7 @@ import {
   FolderOpenOutlined,
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/core';
-import { homeDir } from '@tauri-apps/api/path';
+import { usePaths } from '../../contexts/PathContext';
 import type { MenuProps } from 'antd';
 import { InsertionHub } from '../common';
 import { processReplacementPreview, processSavedExtension, enhancePreviewWithValidation, VariableValidationResult } from '../../utils/previewProcessor';
@@ -40,6 +40,7 @@ import { useProjects } from '../../contexts/ProjectContext';
 import { useVariables } from '../../contexts/VariablesContext';
 import { useLLMContext } from '../../contexts/LLMContext';
 import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
+import { useCategories } from '../../contexts/CategoriesContext';
 import { CustomVariable } from '../../types/variables';
 
 const { Title, Text } = Typography;
@@ -72,6 +73,7 @@ interface PreviewContentResult {
 }
 
 export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ categoryId }) => {
+  const { espansoMatchDir } = usePaths();
   const [category, setCategory] = useState<Category | null>(null);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [filteredReplacements, setFilteredReplacements] = useState<Replacement[]>([]);
@@ -103,6 +105,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
   const { categories: variableCategories } = useVariables();
   const { generateReplacement, loadConfigs } = useLLMContext();
   const { categories: projectCategories } = useProjectCategories();
+  const { categories: replacementCategories } = useCategories();
   
   // Debounce the replacement text for preview processing
   const debouncedReplaceText = useDebounce(editingReplace, 150);
@@ -168,7 +171,7 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     loadCategoryAndReplacements();
     // Reload LLM configs to ensure we have the latest
     loadConfigs();
-  }, [categoryId, projectCategories, loadConfigs]);
+  }, [categoryId, replacementCategories, loadConfigs]);
 
   useEffect(() => {
     // Filter replacements based on search text
@@ -185,25 +188,19 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
 
   const loadCategoryAndReplacements = async () => {
     try {
-      // Find category from project categories using fileName
+      // Find category from replacement categories using fileName
       const fileName = `${categoryId}.yml`;
-      const cat = projectCategories.find(c => c.fileName === fileName);
+      const cat = replacementCategories.find(c => c.fileName === fileName);
       if (cat) {
-        // Convert project category to legacy category format for compatibility
-        const legacyCategory: Category = {
-          id: cat.id,
-          name: cat.name,
-          fileName: cat.fileName || fileName,
-          description: cat.description,
-          icon: cat.icon || 'FileTextOutlined',
-          color: cat.color,
-          isDefault: cat.isDefault,
-        };
-        setCategory(legacyCategory);
-        
+        // Use the category directly - it already matches the Category interface
+        setCategory(cat);
+
         // Load replacements for this category - use full path
-        const homeDirPath = await homeDir();
-        const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${fileName}`;
+        if (!espansoMatchDir) {
+          message.error('Espanso path not loaded');
+          return;
+        }
+        const filePath = `${espansoMatchDir}/${fileName}`;
         const data = await invoke<Replacement[]>('read_espanso_file', { filePath });
         setReplacements(data);
       }
@@ -258,8 +255,11 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
           const newReplacements = [...replacements];
           newReplacements.splice(index, 1);
           
-          const homeDirPath = await homeDir();
-          const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${category.fileName}`;
+          if (!espansoMatchDir) {
+            message.error('Espanso path not loaded');
+            return;
+          }
+          const filePath = `${espansoMatchDir}/${category.fileName}`;
           
           console.log('Deleting from file path:', filePath);
           console.log('Updated replacements array:', newReplacements);
@@ -293,10 +293,13 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
 
     try {
       const newReplacements = [...replacements];
-      
-      const homeDirPath = await homeDir();
-      const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${category.fileName}`;
-      
+
+      if (!espansoMatchDir) {
+        message.error('Espanso path not loaded');
+        return;
+      }
+      const filePath = `${espansoMatchDir}/${category.fileName}`;
+
       console.log('Saving to file path:', filePath);
       console.log('New replacements array:', newReplacements);
 
@@ -447,9 +450,12 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
       
       setSelectedFile(fileName);
       setBrowsedFilePath(null); // Clear browsed file when selecting from dropdown
-      
-      const homeDirPath = await homeDir();
-      const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${fileName}`;
+
+      if (!espansoMatchDir) {
+        message.error('Espanso path not loaded');
+        return;
+      }
+      const filePath = `${espansoMatchDir}/${fileName}`;
       const data = await invoke<Replacement[]>('read_espanso_file', { filePath });
       setImportedReplacements(data);
       // By default, select all non-duplicate replacements
@@ -525,9 +531,13 @@ export const CategoryReplacements: React.FC<CategoryReplacementsProps> = ({ cate
     setIsImporting(true);
     try {
       const newReplacements = [...replacements];
-      const homeDirPath = await homeDir();
-      const filePath = `${homeDirPath}/Library/Application Support/espanso/match/${category.fileName}`;
-      
+      if (!espansoMatchDir) {
+        message.error('Espanso path not loaded');
+        setIsImporting(false);
+        return;
+      }
+      const filePath = `${espansoMatchDir}/${category.fileName}`;
+
       // Add selected replacements
       const replacementsToImport = importedReplacements.filter(r => 
         selectedImports.includes(r.trigger)

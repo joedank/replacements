@@ -41,8 +41,44 @@
       "mcp__filesystem__read_file",
       "mcp__filesystem__edit_file",
       "mcp__filesystem__list_allowed_directories",
-      "mcp__filesystem__search_files"
+      "mcp__filesystem__search_files",
+      "mcp__Desktop_Commander__read_file",
+      "mcp__Desktop_Commander__search_files",
+      "Bash(npm run tauri:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebSearch",
+      "Bash(cat:*)",
+      "Bash(git reset:*)",
+      "Bash(git restore:*)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:www.richsnapp.com)",
+      "Bash(cargo build:*)",
+      "Bash(brew install:*)",
+      "Bash(brew list:*)",
+      "Bash(echo:*)",
+      "Bash(rustup target add:*)",
+      "Bash(cargo install:*)",
+      "Bash(rustup update:*)",
+      "WebFetch(domain:espanso.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(espanso path:*)",
+      "Bash(cd:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(~/Library/Application Support/espanso/config/projects.json)",
+      "Bash(osascript:*)",
+      "Bash(screencapture:*)"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "Ant Design Components",
+    "Context7",
+    "Desktop Commander",
+    "filesystem",
+    "github",
+    "iterm-mcp",
+    "postgres",
+    "think",
+    "youtube"
+  ]
 }

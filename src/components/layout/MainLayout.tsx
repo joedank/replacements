@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Typography, theme, Select, Space } from 'antd';
+import { Layout, Menu, Button, Typography, theme, Select, Space, Avatar, Badge } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -11,12 +11,14 @@ import {
   SearchOutlined,
   FolderOpenOutlined,
   EditOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import * as Icons from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useReplacements } from '../../contexts/ReplacementContext';
 import { useProjects } from '../../contexts/ProjectContext';
 import { useProjectCategories } from '../../contexts/ProjectCategoriesContext';
+import { useCategories } from '../../contexts/CategoriesContext';
 import { getCategoryValue } from '../../utils/projectHelpers';
 
 const { Header, Sider, Content, Footer } = Layout;
@@ -37,9 +39,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
   
-  const { 
-    loadReplacements,
-    selectMenuItem 
+  const {
+    selectMenuItem
   } = useReplacements();
   
   const {
@@ -52,12 +53,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   } = useProjects();
   
   const { categories: projectCategories } = useProjectCategories();
+  const { categories: replacementCategories } = useCategories();
 
-  // Load replacements and projects on component mount
+  // Load projects on component mount
+  // Note: Replacements auto-load in ReplacementContext when paths are ready
   useEffect(() => {
-    loadReplacements();
     loadProjects();
-  }, [loadReplacements, loadProjects]);
+  }, [loadProjects]);
 
   const handleMenuClick: MenuProps['onClick'] = (e) => {
     const key = e.key;
@@ -88,11 +90,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: 'replacements',
       icon: <EditOutlined />,
       label: 'Replacements',
-      children: projectCategories.filter(cat => cat.fileName).map((category) => ({
-        key: `category-${category.fileName?.replace('.yml', '')}`,
-        icon: getIconComponent(category.icon || 'FileTextOutlined'),
-        label: category.name,
-      })),
+      children: replacementCategories
+        .filter(cat => cat.fileName) // Only filter by fileName existence
+        .map((category) => ({
+          key: `category-${category.fileName?.replace('.yml', '')}`,
+          icon: getIconComponent(category.icon || 'FileTextOutlined'),
+          label: category.name,
+        })),
     },
     {
       key: 'projects',
@@ -180,17 +184,60 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'flex-start',
           padding: collapsed ? '0' : '0 16px',
-          borderBottom: '1px solid #f0f0f0',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         }}>
           {!collapsed && (
-            <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
-              BRM
-            </Title>
+            <Space align="center" size={12}>
+              <Avatar
+                size={40}
+                icon={<SwapOutlined style={{ fontSize: '20px' }} />}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  color: '#764ba2',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                  border: '2px solid rgba(255, 255, 255, 0.3)'
+                }}
+              />
+              <div>
+                <Title level={4} style={{
+                  margin: 0,
+                  color: '#fff',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                }}>
+                  BRM
+                </Title>
+                <span style={{
+                  fontSize: '10px',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  letterSpacing: '0.5px',
+                  fontWeight: 500
+                }}>
+                  Better Replacements
+                </span>
+              </div>
+            </Space>
           )}
           {collapsed && (
-            <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
-              B
-            </Title>
+            <Badge
+              dot
+              color="#52c41a"
+              offset={[-5, 5]}
+              style={{ width: '100%' }}
+            >
+              <Avatar
+                size={40}
+                icon={<SwapOutlined style={{ fontSize: '20px' }} />}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  color: '#764ba2',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                  border: '2px solid rgba(255, 255, 255, 0.3)'
+                }}
+              />
+            </Badge>
           )}
         </div>
         

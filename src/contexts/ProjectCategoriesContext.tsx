@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { message } from 'antd';
 import { invoke } from '@tauri-apps/api/core';
 import { ProjectCategory, DEFAULT_PROJECT_CATEGORIES } from '../types/projectCategories';
+import { usePaths } from './PathContext';
 
 interface ProjectCategoriesContextType {
   categories: ProjectCategory[];
@@ -30,6 +31,7 @@ interface ProjectCategoriesData {
 export const ProjectCategoriesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
   const [loading, setLoading] = useState(false);
+  const { espansoConfigDir, isLoading: pathsLoading } = usePaths();
 
   const loadCategories = async () => {
     setLoading(true);
@@ -122,9 +124,14 @@ export const ProjectCategoriesProvider: React.FC<{ children: React.ReactNode }> 
     }
   };
 
+  // Auto-load categories when paths are ready
+  // This fixes the race condition where ProjectCategoriesContext tried to load before PathContext finished
   useEffect(() => {
-    loadCategories();
-  }, []);
+    if (!pathsLoading && espansoConfigDir) {
+      console.log('Paths ready, auto-loading project categories');
+      loadCategories();
+    }
+  }, [pathsLoading, espansoConfigDir]);
 
   return (
     <ProjectCategoriesContext.Provider

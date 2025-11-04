@@ -25,10 +25,11 @@ pub struct LLMConfigData {
 pub fn store_api_key(config_id: &str, api_key: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE_NAME, &format!("api_key_{}", config_id))
         .map_err(|e| format!("Failed to create keyring entry: {}", e))?;
-    
-    entry.set_password(api_key)
+
+    entry
+        .set_password(api_key)
         .map_err(|e| format!("Failed to store API key: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -36,8 +37,9 @@ pub fn store_api_key(config_id: &str, api_key: &str) -> Result<(), String> {
 pub fn get_api_key(config_id: &str) -> Result<String, String> {
     let entry = Entry::new(SERVICE_NAME, &format!("api_key_{}", config_id))
         .map_err(|e| format!("Failed to access keyring: {}", e))?;
-    
-    entry.get_password()
+
+    entry
+        .get_password()
         .map_err(|e| format!("Failed to retrieve API key: {}", e))
 }
 
@@ -45,10 +47,11 @@ pub fn get_api_key(config_id: &str) -> Result<String, String> {
 pub fn delete_api_key(config_id: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE_NAME, &format!("api_key_{}", config_id))
         .map_err(|e| format!("Failed to access keyring: {}", e))?;
-    
-    entry.delete_password()
+
+    entry
+        .delete_password()
         .map_err(|e| format!("Failed to delete API key: {}", e))?;
-    
+
     Ok(())
 }
 
