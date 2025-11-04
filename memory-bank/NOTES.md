@@ -57,8 +57,9 @@ Research findings are documented in detail here and summarized in main conversat
 - None documented yet
 
 ### Platform-Specific Issues
-- **Windows**: Not yet supported - path handling and file system differences need addressing
-- **Linux**: Not yet supported - desktop integration and packaging need research
+- **Windows**: ✅ Cross-compilation working via cargo-xwin - NSIS installer builds successfully from macOS
+- **Linux**: ✅ CI/CD configured - .deb and AppImage build via GitHub Actions
+- **Note**: All platforms validated via automated builds, pending real-world user testing
 
 ---
 
@@ -93,23 +94,19 @@ Research findings are documented in detail here and summarized in main conversat
 - **Testing**: Active development and testing
 - **Distribution**: DMG installer created by build script
 
-### Windows (Future Target)
-- **Status**: Not yet supported
-- **Key Requirements**:
-  - Path handling (backslash vs forward slash)
-  - Registry access patterns (if needed)
-  - MSI installer setup
-  - Test on Windows VM or hardware
-- **Research Needed**: Tauri Windows-specific APIs and best practices
+### Windows
+- **Status**: ✅ Cross-compilation working
+- **Build Method**: cargo-xwin from macOS or GitHub Actions
+- **Installer**: NSIS .exe installer
+- **Path Handling**: Implemented via PathContext (AppData/Roaming)
+- **Testing Status**: Installer builds successfully, pending real-world testing
 
-### Linux (Future Target)
-- **Status**: Not yet supported
-- **Key Requirements**:
-  - Desktop entry files
-  - AppImage/Deb/RPM packaging
-  - Wayland vs X11 compatibility
-  - Distribution-specific testing
-- **Research Needed**: Linux desktop integration patterns
+### Linux
+- **Status**: ✅ CI/CD configured
+- **Build Method**: GitHub Actions on push tag
+- **Packages**: .deb (Debian/Ubuntu) and AppImage (universal)
+- **Path Handling**: Implemented via PathContext (~/.config)
+- **Testing Status**: Packages build successfully, pending real-world testing
 
 ---
 
@@ -198,5 +195,5 @@ tail -f ~/Library/Logs/com.josephmcmyne.betterreplacementsmanager/*.log
 
 ---
 
-**Last Updated**: 2025-11-02
-**Last Updated By**: Claude Code Agent Setup
+**Last Updated**: 2025-11-04
+**Last Updated By**: Claude Code (Updated cross-platform status)
