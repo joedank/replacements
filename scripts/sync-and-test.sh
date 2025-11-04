@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-REPO_URL="<REPO_URL_GOES_HERE>"
+REPO_URL="https://github.com/joedank/replacements.git"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_TARGET="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
