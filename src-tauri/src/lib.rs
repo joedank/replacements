@@ -17,18 +17,38 @@ mod secure_storage;
 struct EspansoMatch {
     trigger: String,
     replace: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vars: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    case_sensitive: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    word_boundary: Option<bool>,
+    #[serde(flatten)]
+    #[serde(default)]
+    extra: HashMap<String, Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct EspansoConfig {
     matches: Vec<EspansoMatch>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_vars: Option<Value>,
+    #[serde(flatten)]
+    #[serde(default)]
+    extra: HashMap<String, Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Replacement {
     trigger: String,
     replace: String,
     source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vars: Option<Value>,
+    #[serde(default)]
+    metadata: HashMap<String, Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,11 +257,36 @@ fn read_espanso_file(file_path: String) -> Result<Vec<Replacement>, String> {
     let replacements = config
         .matches
         .into_iter()
-        .map(|m| Replacement {
-            trigger: m.trigger,
-            replace: m.replace,
-            source: file_name.to_string(),
-        })
+        .map(
+            |EspansoMatch {
+                 trigger,
+                 replace,
+                 vars,
+                 enabled,
+                 case_sensitive,
+                 word_boundary,
+                 extra,
+             }| {
+                let mut metadata = extra;
+                if let Some(value) = enabled {
+                    metadata.insert("enabled".to_string(), Value::Bool(value));
+                }
+                if let Some(value) = case_sensitive {
+                    metadata.insert("case_sensitive".to_string(), Value::Bool(value));
+                }
+                if let Some(value) = word_boundary {
+                    metadata.insert("word_boundary".to_string(), Value::Bool(value));
+                }
+
+                Replacement {
+                    trigger,
+                    replace,
+                    source: file_name.to_string(),
+                    vars,
+                    metadata,
+                }
+            },
+        )
         .collect();
 
     Ok(replacements)
@@ -259,13 +304,35 @@ fn write_espanso_file(file_path: String, replacements: Vec<Replacement>) -> Resu
     // Convert replacements to EspansoConfig
     let matches: Vec<EspansoMatch> = replacements
         .into_iter()
-        .map(|r| EspansoMatch {
-            trigger: r.trigger,
-            replace: r.replace,
+        .map(|r| {
+            let mut metadata = r.metadata;
+            let enabled = metadata
+                .remove("enabled")
+                .and_then(|value| value.as_bool());
+            let case_sensitive = metadata
+                .remove("case_sensitive")
+                .and_then(|value| value.as_bool());
+            let word_boundary = metadata
+                .remove("word_boundary")
+                .and_then(|value| value.as_bool());
+
+            EspansoMatch {
+                trigger: r.trigger,
+                replace: r.replace,
+                vars: r.vars,
+                enabled,
+                case_sensitive,
+                word_boundary,
+                extra: metadata,
+            }
         })
         .collect();
 
-    let config = EspansoConfig { matches };
+    let config = EspansoConfig {
+        matches,
+        global_vars: None,
+        extra: HashMap::new(),
+    };
 
     // Serialize to YAML
     let yaml_string =
@@ -2061,4 +2128,42 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_preserve_vars() {
+        let yaml = r#"matches:
+  - trigger: ":test"
+    replace: "value"
+    vars:
+      - name: var1
+        type: echo
+        params:
+          echo: "hello"
+"#;
+        let config: EspansoConfig = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.matches[0].vars.is_some());
+
+        let output = serde_yaml::to_string(&config).unwrap();
+        assert!(output.contains("vars:"));
+        assert!(output.contains("var1"));
+    }
+
+    #[test]
+    fn test_preserve_enabled_flag() {
+        let yaml = r#"matches:
+  - trigger: ":test"
+    replace: "value"
+    enabled: false
+"#;
+        let config: EspansoConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.matches[0].enabled, Some(false));
+
+        let output = serde_yaml::to_string(&config).unwrap();
+        assert!(output.contains("enabled: false"));
+    }
 }

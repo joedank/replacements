@@ -51,6 +51,8 @@ interface Replacement {
   trigger: string;
   replace: string;
   source: string;
+  vars?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 interface Category {
